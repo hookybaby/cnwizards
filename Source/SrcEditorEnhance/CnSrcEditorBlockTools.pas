@@ -125,6 +125,9 @@ type
     FHideStructMenu: TMenuItem;
     FTabIndent: Boolean;
     FShowColor: Boolean;
+{$IFDEF BDS}
+    FExtraMenuItem: Boolean;
+{$ENDIF}
     procedure SetActive(const Value: Boolean);
     function ExecuteMenu(MenuItem: TMenuItem; Kind: TBlockToolKind): Boolean;
     procedure OnPopup(Sender: TObject);
@@ -183,6 +186,9 @@ type
     property Active: Boolean read FActive write SetActive;
     property ShowBlockTools: Boolean read FShowBlockTools write SetShowBlockTools;
     property ShowColor: Boolean read FShowColor write SetShowColor;
+{$IFDEF BDS}
+    property ExtraMenuItem: Boolean read FExtraMenuItem write FExtraMenuItem;
+{$ENDIF}
     property TabIndent: Boolean read FTabIndent write FTabIndent;
     property PopupMenu: TPopupMenu read FPopupMenu;
     property OnEnhConfig: TNotifyEvent read FOnEnhConfig write FOnEnhConfig;
@@ -241,15 +247,18 @@ begin
 {$ENDIF}
 
 {$IFDEF BDS}
-  if FBlockMoveUpShortCut = nil then
-    FBlockMoveUpShortCut := WizShortCutMgr.Add('CnEditBlockMoveUp',
-      ShortCut(Word('U'), [ssCtrl, ssAlt, ssShift]), OnEditBlockMoveUp);
-  if FBlockMoveDownShortCut = nil then
-    FBlockMoveDownShortCut := WizShortCutMgr.Add('CnEditBlockMoveDown',
-      ShortCut(Word('D'), [ssCtrl, ssAlt, ssShift]), OnEditBlockMoveDown);
-  if FBlockDelLinesShortCut = nil then
-    FBlockDelLinesShortCut := WizShortCutMgr.Add('CnEditBlockDeleteLines',
-      ShortCut(Word('D'), [ssCtrl, ssShift]), OnEditBlockDelLines);
+  if FExtraMenuItem then
+  begin
+    if FBlockMoveUpShortCut = nil then
+      FBlockMoveUpShortCut := WizShortCutMgr.Add('CnEditBlockMoveUp',
+        ShortCut(Word('U'), [ssCtrl, ssAlt, ssShift]), OnEditBlockMoveUp);
+    if FBlockMoveDownShortCut = nil then
+      FBlockMoveDownShortCut := WizShortCutMgr.Add('CnEditBlockMoveDown',
+        ShortCut(Word('D'), [ssCtrl, ssAlt, ssShift]), OnEditBlockMoveDown);
+    if FBlockDelLinesShortCut = nil then
+      FBlockDelLinesShortCut := WizShortCutMgr.Add('CnEditBlockDeleteLines',
+        ShortCut(Word('D'), [ssCtrl, ssShift]), OnEditBlockDelLines);
+  end;
 {$ENDIF}
 end;
 
@@ -1063,9 +1072,12 @@ begin
 {$ENDIF}
 
 {$IFDEF BDS} // Only for BDS because of bug. ;-(
-  DoAddMenuItem(FMiscMenu, SCnSrcBlockMoveUp, btBlockMoveUp, GetShortCut(FBlockMoveUpShortCut));
-  DoAddMenuItem(FMiscMenu, SCnSrcBlockMoveDown, btBlockMoveDown, GetShortCut(FBlockMoveDownShortCut));
-  DoAddMenuItem(FMiscMenu, SCnSrcBlockDeleteLines, btBlockDelLines, GetShortCut(FBlockDelLinesShortCut));
+  if FExtraMenuItem then
+  begin
+    DoAddMenuItem(FMiscMenu, SCnSrcBlockMoveUp, btBlockMoveUp, GetShortCut(FBlockMoveUpShortCut));
+    DoAddMenuItem(FMiscMenu, SCnSrcBlockMoveDown, btBlockMoveDown, GetShortCut(FBlockMoveDownShortCut));
+    DoAddMenuItem(FMiscMenu, SCnSrcBlockDeleteLines, btBlockDelLines, GetShortCut(FBlockDelLinesShortCut));
+  end;
 {$ENDIF}
 
 {$IFDEF IDE_HAS_OWN_STRUCTUAL_HIGHLIGHT}
@@ -1387,13 +1399,19 @@ begin
   FShowBlockTools := Ini.ReadBool(csBlockTools, csShowBlockTools, FShowBlockTools);
   FShowColor := Ini.ReadBool(csBlockTools, csShowColor, FShowColor);
   FTabIndent := Ini.ReadBool(csBlockTools, csTabIndent, True);
+{$IFDEF BDS}
+  FExtraMenuItem := Ini.ReadBool(csBlockTools, csExtraMenuItem, True);
+{$ENDIF}
 end;
 
 procedure TCnSrcEditorBlockTools.SaveSettings(Ini: TCustomIniFile);
 begin
   Ini.WriteBool(csBlockTools, csShowBlockTools, FShowBlockTools);
   Ini.WriteBool(csBlockTools, csShowColor, FShowColor);
-  Ini.WriteBool(csBlockTools, csTabIndent, FTabIndent);  
+  Ini.WriteBool(csBlockTools, csTabIndent, FTabIndent);
+{$IFDEF BDS}
+  Ini.WriteBool(csBlockTools, csExtraMenuItem, FExtraMenuItem);
+{$ENDIF}
 end;
 
 procedure TCnSrcEditorBlockTools.ResetSettings(Ini: TCustomIniFile);
