@@ -292,7 +292,7 @@
     {
       "MenuPath": "MessageView.MessageView.MsgViewPopupMenu",
       "ForceEnglish": "FALSE",
-      "ItemCaption": [["Clear All Messages", "清除所有消息"], ["Clear Messages", "清除消息"], ["Close Tab", "关闭窗口"], ["Copy", "复制"], ["Dockable", "可停靠"], ["Edit Source", "编辑源代码"], ["Local Menu", "本地菜单"], ["Next Message Tab", "下一个消息窗口"], ["Previous Message Tab", "上一个消息窗口"], ["Save All Messages", "保存所有消息"], ["Save Messages", "保存消息"], ["Select All", "全选"], ["View Editor", "查看编辑器"], ["View source", "查看源代码"], ["Zoom Window", "缩放窗口"]]
+      "ItemCaption": [["Clear All Messages", "清除所有消息"], ["Clear Compiler Messages", "清除编译消息"], ["Clear Messages", "清除消息"], ["Clear Search Results", "清除查找结果"], ["Close Tab", "关闭窗口"], ["Copy", "复制"], ["Dockable", "可停靠"], ["Edit Source", "编辑源代码"], ["Local Menu", "本地菜单"], ["Next Message Tab", "下一个消息窗口"], ["Previous Message Tab", "上一个消息窗口"], ["Save All Messages", "保存所有消息"], ["Save Messages", "保存消息"], ["Save Messages..", "保存消息"], ["Select All", "全选"], ["View Editor", "查看编辑器"], ["View source", "查看源代码"], ["Zoom Window", "缩放窗口"]]
     },
     {
       "MenuPath": "MessageViewForm.MessageViewForm.MsgViewPopupMenu",
