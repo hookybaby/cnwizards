@@ -1,9 +1,9 @@
 object AppBuillder: TAppBuillder
-  Left = 369
-  Top = 259
-  Width = 538
-  Height = 503
-  Caption = 'Build Launcher for CnPack IDE Wizards'
+  Left = 223
+  Top = 172
+  Width = 1077
+  Height = 596
+  Caption = 'Build Launcher for CnPack IDE Wizards - 2.0'
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -13,19 +13,20 @@ object AppBuillder: TAppBuillder
   OldCreateOrder = False
   Position = poScreenCenter
   OnCreate = FormCreate
+  OnDestroy = FormDestroy
   DesignSize = (
-    530
-    476)
+    1069
+    569)
   PixelsPerInch = 96
   TextHeight = 13
   object lbl1: TLabel
     Left = 16
     Top = 48
-    Width = 141
+    Width = 137
     Height = 65
     Caption = 
-      'Must Run want.exe from Here'#13#10#13#10'to Avoid C++Builder 5'#13#10#13#10'Compiler' +
-      ' Bug.'
+      'Can Run want.exe from Here'#13#10#13#10'to Avoid C++Builder 5'#13#10#13#10'Compiler ' +
+      'Bug.'
   end
   object lblCmdPreview: TLabel
     Left = 16
@@ -36,18 +37,16 @@ object AppBuillder: TAppBuillder
   object bvl1: TBevel
     Left = 16
     Top = 136
-    Width = 497
+    Width = 457
     Height = 17
-    Anchors = [akLeft, akTop, akRight]
     Shape = bsTopLine
   end
   object btnCopyCmd: TSpeedButton
-    Left = 488
+    Left = 448
     Top = 144
     Width = 23
     Height = 22
     Hint = 'Copy Command Line'
-    Anchors = [akTop, akRight]
     Flat = True
     Glyph.Data = {
       36040000424D3604000000000000360000002800000010000000100000000100
@@ -87,11 +86,10 @@ object AppBuillder: TAppBuillder
     OnClick = btnCopyCmdClick
   end
   object btnRunWant: TButton
-    Left = 352
+    Left = 312
     Top = 16
     Width = 161
     Height = 25
-    Anchors = [akTop, akRight]
     Caption = 'Run Want To Build'
     TabOrder = 0
     OnClick = btnRunWantClick
@@ -116,9 +114,8 @@ object AppBuillder: TAppBuillder
   object rgDef: TRadioGroup
     Left = 184
     Top = 16
-    Width = 145
+    Width = 105
     Height = 105
-    Anchors = [akLeft, akTop, akRight]
     Caption = 'Build Type'
     ItemIndex = 0
     Items.Strings = (
@@ -130,35 +127,64 @@ object AppBuillder: TAppBuillder
     OnClick = rgDefClick
   end
   object btnShowCmd: TButton
-    Left = 352
+    Left = 312
     Top = 96
     Width = 161
     Height = 25
-    Anchors = [akTop, akRight]
     Caption = 'Show Cmd Window'
-    TabOrder = 3
+    TabOrder = 4
     OnClick = btnShowCmdClick
   end
   object lvTargets: TListView
     Left = 16
     Top = 176
-    Width = 497
-    Height = 281
-    Anchors = [akLeft, akTop, akRight, akBottom]
+    Width = 457
+    Height = 378
+    Anchors = [akLeft, akTop, akBottom]
     Columns = <
       item
         Caption = 'Target'
-        Width = 120
+        Width = 100
       end
       item
         Caption = 'Description'
-        Width = 350
+        Width = 330
       end>
     ReadOnly = True
     RowSelect = True
-    TabOrder = 4
+    TabOrder = 5
     ViewStyle = vsReport
     OnClick = lvTargetsClick
     OnDblClick = lvTargetsDblClick
+  end
+  object mmoOutput: TMemo
+    Left = 488
+    Top = 16
+    Width = 569
+    Height = 538
+    Anchors = [akLeft, akTop, akRight, akBottom]
+    Color = clGray
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clLime
+    Font.Height = -11
+    Font.Name = 'Courier New'
+    Font.Style = []
+    ParentFont = False
+    ReadOnly = True
+    ScrollBars = ssBoth
+    TabOrder = 6
+  end
+  object chkShellExecute: TCheckBox
+    Left = 312
+    Top = 56
+    Width = 161
+    Height = 17
+    Hint = 'If Meet C++Builder 5 Compiler Bug, Check this'
+    Caption = 'Use ShellExecute'
+    Checked = True
+    ParentShowHint = False
+    ShowHint = True
+    State = cbChecked
+    TabOrder = 3
   end
 end

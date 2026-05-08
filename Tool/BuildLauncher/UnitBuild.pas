@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, ShellAPI, ExtCtrls, ComCtrls, Buttons, Clipbrd;
+  Dialogs, StdCtrls, ShellAPI, ExtCtrls, ComCtrls, Buttons, Clipbrd, CnStdio;
 
 type
   TAppBuillder = class(TForm)
@@ -17,6 +17,8 @@ type
     lblCmdPreview: TLabel;
     bvl1: TBevel;
     btnCopyCmd: TSpeedButton;
+    mmoOutput: TMemo;
+    chkShellExecute: TCheckBox;
     procedure btnRunWantClick(Sender: TObject);
     procedure btnShowCmdClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -25,9 +27,14 @@ type
     procedure lvTargetsDblClick(Sender: TObject);
     procedure lvTargetsClick(Sender: TObject);
     procedure btnCopyCmdClick(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
   private
+    FStdioProcess: TCnStdioProcess;
     procedure LoadXML(const FileName: string);
     procedure UpdateCmdPreview;
+    procedure StdioProcessLine(Sender: TObject; StreamKind: TCnStdioStreamKind;
+      const Line: string);
+    procedure StdioProcessExited(Sender: TObject; ExitCode: Cardinal);
   public
     procedure PrepareCmd(var Cmd, Param: string);
   end;
@@ -59,8 +66,37 @@ var
   Cmd, Param: string;
 begin
   PrepareCmd(Cmd, Param);
-  ShellExecute(0, 'open', PChar(Cmd), PChar(Param),
-    PChar(ExtractFilePath(Application.ExeName)), SW_SHOWNORMAL);
+  if chkShellExecute.Checked then
+  begin
+    ShellExecute(0, 'open', PChar(Cmd), PChar(Param),
+      PChar(ExtractFilePath(Application.ExeName)), SW_SHOWNORMAL)
+  end
+  else
+  begin
+    FStdioProcess.Free;
+    FStdioProcess := TCnStdioProcess.Create;
+    FStdioProcess.OnLine := StdioProcessLine;
+    FStdioProcess.OnExited := StdioProcessExited;
+    FStdioProcess.ApplicationName := Cmd;
+    FStdioProcess.CommandLine := Cmd + ' ' + Param;
+    FStdioProcess.WorkingDirectory := ExtractFilePath(Application.ExeName);
+    FStdioProcess.CreateNoWindow := True;
+    FStdioProcess.Start;
+  end;
+end;
+
+procedure TAppBuillder.StdioProcessLine(Sender: TObject;
+  StreamKind: TCnStdioStreamKind; const Line: string);
+begin
+  mmoOutput.Lines.Add(Line);
+  mmoOutput.SelStart := Length(mmoOutput.Text);
+  mmoOutput.SelLength := 0;
+end;
+
+procedure TAppBuillder.StdioProcessExited(Sender: TObject; ExitCode: Cardinal);
+begin
+  mmoOutput.Lines.Add('');
+  mmoOutput.Lines.Add('=== WANT Exited with Code: ' + IntToStr(ExitCode) + ' ===');
 end;
 
 procedure TAppBuillder.btnShowCmdClick(Sender: TObject);
@@ -86,11 +122,8 @@ begin
        SameText(XMLDoc.DocumentElement.NodeName, SXProject) then
     begin
       Root := XMLDoc.DocumentElement;
-
-      // Get default attribute
       Def := Root.GetAttribute(SXDefault);
 
-      // Iterate child nodes
       for I := 0 to Root.ChildCount - 1 do
       begin
         Item := Root.Children[I];
@@ -211,6 +244,11 @@ begin
     Delete(S, 1, I - 1);
 
   Clipboard.AsText := S;
+end;
+
+procedure TAppBuillder.FormDestroy(Sender: TObject);
+begin
+  FStdioProcess.Free;
 end;
 
 end.

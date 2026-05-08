@@ -94,7 +94,7 @@ OutputDir=..\..\Make
 UnitOutputDir=
 PackageDLLOutputDir=
 PackageDCPOutputDir=
-SearchPath=..\..\Source\;..\..\Source\ThirdParty\;..\..\..\cnvcl\Source\Common;..\..\..\cnvcl\Source\Crypto;..\..\..\cnvcl\Source\Graphic
+SearchPath=..\..\Source\;..\..\Source\ThirdParty\;..\..\..\cnvcl\Source\Common;..\..\..\cnvcl\Source\Crypto;..\..\..\cnvcl\Source\Graphic;..\..\..\cnvcl\Source\NonVisual
 Packages=vcl;rtl;indy;inet;xmlrtl;vclie;inetdbbde;inetdbxpress;vclx;dbrtl;dsnap;dsnapcon;vcldb;soaprtl;VclSmp;dbexpress;dbxcds;inetdb;bdertl;vcldbx;webdsnap;websnap;adortl;ibxpress;teeui;teedb;tee;dss;vclactnband;vclshlctrls;IntrawebDB_50_70;Intraweb_50_70;dclOfficeXP;CnPack_D7
 Conditionals=
 DebugSourceDirs=
@@ -139,10 +139,11 @@ c:\program files\borland\delphi7\bin\dclRave70.bpl=Rave Reports BE 5.0 Package
 Count=1
 Item0=WinTypes=Windows;WinProcs=Windows;DbiTypes=BDE;DbiProcs=BDE;DbiErrs=BDE;
 [HistoryLists\hlSearchPath]
-Count=3
-Item0=..\..\Source\;..\..\Source\ThirdParty\;..\..\..\cnvcl\Source\Common;..\..\..\cnvcl\Source\Crypto;..\..\..\cnvcl\Source\Graphic
-Item1=..\Source\;..\Source\ThirdParty\;..\..\cnvcl\Source\Common;..\..\cnvcl\Source\Crypto;..\..\cnvcl\Source\Graphic
-Item2=..\Source\ThirdParty\
+Count=4
+Item0=..\..\Source\;..\..\Source\ThirdParty\;..\..\..\cnvcl\Source\Common;..\..\..\cnvcl\Source\Crypto;..\..\..\cnvcl\Source\Graphic;..\..\..\cnvcl\Source\NonVisual
+Item1=..\..\Source\;..\..\Source\ThirdParty\;..\..\..\cnvcl\Source\Common;..\..\..\cnvcl\Source\Crypto;..\..\..\cnvcl\Source\Graphic
+Item2=..\Source\;..\Source\ThirdParty\;..\..\cnvcl\Source\Common;..\..\cnvcl\Source\Crypto;..\..\cnvcl\Source\Graphic
+Item3=..\Source\ThirdParty\
 [HistoryLists\hlOutputDirectorry]
 Count=1
 Item0=..\..\Make
