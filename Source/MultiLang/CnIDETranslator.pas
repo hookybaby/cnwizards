@@ -302,6 +302,8 @@ type
       var Msg: TMessage; var Handled: Boolean);
 {$ENDIF}
 
+    // 翻译处理 Hint，但效果不佳，先禁用
+    procedure OnApplicationEvent(EventType: TCnWizAppEventType; Data: Pointer);
     procedure OnApplicationIdle(Sender: TObject);
 {$IFDEF COMPILER7_UP}
     procedure CheckActionMainMenuBarPersistentHotKeys;
@@ -2654,6 +2656,7 @@ begin
   CnWizNotifierServices.AddActiveFormNotifier(ActiveFormChanged);
   CnWizNotifierServices.AddDesignerMenuBuildNotifier(DesignerMenuBuild);
   CnWizNotifierServices.AddApplicationIdleNotifier(OnApplicationIdle);
+  // CnWizNotifierServices.AddAppEventNotifier(OnApplicationEvent);
 
 {$IFDEF BDS}
   CnWizNotifierServices.AddSourceEditorNotifier(SourceEditorNotify);
@@ -2672,6 +2675,7 @@ begin
   CnWizNotifierServices.RemoveSourceEditorNotifier(SourceEditorNotify);
 {$ENDIF}
 
+  // CnWizNotifierServices.RemoveAppEventNotifier(OnApplicationEvent);
   CnWizNotifierServices.RemoveApplicationIdleNotifier(OnApplicationIdle);
   CnWizNotifierServices.RemoveDesignerMenuBuildNotifier(DesignerMenuBuild);
   CnWizNotifierServices.RemoveActiveFormNotifier(ActiveFormChanged);
@@ -3784,6 +3788,21 @@ begin
   begin
     Translate := False;
     FLangTransFlag := False;
+  end;
+end;
+
+// 翻译 Hint，效果不佳，先禁用
+procedure TCnMenuFormTranslator.OnApplicationEvent(EventType: TCnWizAppEventType; Data: Pointer);
+var
+  P: PHintInfo;
+  S: string;
+begin
+  if (EventType = aeShowHint) and (Data <> nil) and CanTranslateToChinese then
+  begin
+    P := PHintInfo(Data);
+    S := CnLanguageManager.Translate(P^.HintStr);
+    if S <> '' then
+      P^.HintStr := S;
   end;
 end;
 
