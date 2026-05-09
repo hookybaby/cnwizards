@@ -215,10 +215,10 @@ type
   TSetValueProc = procedure(Self: TStringProperty; const Value: string);
      
 var
-  OldSetActionProc: TSetActionProc;
-  OldSetValueProc: TSetValueProc;
+  OldSetActionProc: TSetActionProc = nil;
+  OldSetValueProc: TSetValueProc = nil;
 
-  FWizard: TCnPrefixWizard;
+  FWizard: TCnPrefixWizard = nil;
 
 procedure CnPrefixRenameProc(AComp: TComponent);
 var

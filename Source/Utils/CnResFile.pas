@@ -72,7 +72,6 @@ type
   private
     FModule: THandle;
     FVersionInfo: PChar;
-    FVersionHeader: PChar;
     FChildStrings: TStringList;
     FTranslations: TList;
     FFixedInfo: PVSFixedFileInfo;
