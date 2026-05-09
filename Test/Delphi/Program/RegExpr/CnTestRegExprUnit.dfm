@@ -1,9 +1,9 @@
 object TestRegExprForm: TTestRegExprForm
   Left = 192
   Top = 130
+  Width = 439
+  Height = 404
   Caption = 'Test RegExpr'
-  ClientHeight = 210
-  ClientWidth = 431
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -34,7 +34,7 @@ object TestRegExprForm: TTestRegExprForm
     Width = 289
     Height = 21
     TabOrder = 0
-    Text = 'Vcl.*'
+    Text = '^const\s+([\w.]+): (\d+) \-'
   end
   object edtContent: TEdit
     Left = 80
@@ -42,7 +42,7 @@ object TestRegExprForm: TTestRegExprForm
     Width = 289
     Height = 21
     TabOrder = 1
-    Text = 'Vcl.Dialog'
+    Text = 'const  Vcl.Classes: 2345 - '
   end
   object btnCheck: TButton
     Left = 80
@@ -69,5 +69,13 @@ object TestRegExprForm: TTestRegExprForm
     Caption = 'Check CharUpperW'
     TabOrder = 4
     OnClick = btnCheckUpperWClick
+  end
+  object mmoResult: TMemo
+    Left = 24
+    Top = 208
+    Width = 385
+    Height = 145
+    ReadOnly = True
+    TabOrder = 5
   end
 end

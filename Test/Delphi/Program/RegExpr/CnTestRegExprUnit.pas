@@ -15,6 +15,7 @@ type
     btnCheck: TButton;
     chkCase: TCheckBox;
     btnCheckUpperW: TButton;
+    mmoResult: TMemo;
     procedure btnCheckClick(Sender: TObject);
     procedure btnCheckUpperWClick(Sender: TObject);
   private
@@ -50,12 +51,19 @@ end;
 procedure TTestRegExprForm.btnCheckClick(Sender: TObject);
 var
   RegExpr: TRegExpr;
+  I: Integer;
 begin
   RegExpr := TRegExpr.Create;
   RegExpr.ModifierI := not chkCase.Checked;
 
   if RegExpContainsText(RegExpr, edtContent.Text, edtPattern.Text) then
-    ShowMessage('Matched.')
+  begin
+    ShowMessage('Matched.');
+    mmoResult.Lines.Add('Matched Count: ' + IntToStr(RegExpr.SubExprMatchCount));
+    for I := 0 to RegExpr.SubExprMatchCount do // 0 是整个匹配内容，1 到 Count 才是匹配子内容 
+      mmoResult.Lines.Add(RegExpr.Match[I]);
+    mmoResult.Lines.Add('');
+  end
   else
     ShowMessage('Not Matched.');
 end;
