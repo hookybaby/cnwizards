@@ -316,6 +316,12 @@ begin
   edtDir.Enabled := rbDir.Checked;
   sbDir.Enabled := rbDir.Checked;
   cbSubDirs.Enabled := rbDir.Checked;
+
+  edtSrcFile.Enabled := rbSrcFile.Checked;
+  btnSrcOpen.Enabled := rbSrcFile.Checked;
+  edtSrcDir.Enabled := rbSrcDir.Checked;
+  btnSrcBrowse.Enabled := rbSrcDir.Checked;
+  chkSrcSubDirs.Enabled := rbSrcDir.Checked;
 end;
 
 procedure TCnDTMainForm.btnAboutClick(Sender: TObject);
