@@ -19,16 +19,18 @@
 {******************************************************************************}
 
 unit CnDTMainFrm;
-{ |<PRE>
+{* |<PRE>
 ================================================================================
 * 软件名称：CnPack IDE 专家包
-* 单元名称：窗体格式转换工具主窗体
+* 单元名称：窗体格式及文件编码换行转换工具主窗体
 * 单元作者：周劲羽 (zjy@cnpack.org)
 * 备    注：
 * 开发平台：PWin2000Pro + Delphi 5.01
 * 兼容测试：PWin9X/2000/XP + Delphi 5/6/7 + C++Builder 5/6
 * 本 地 化：该单元中的字符串均符合本地化处理方式
-* 修改记录：2003.04.03 V1.0
+* 修改记录：2026.05.12 V1.1
+*               加入文件格式及回车换行的处理
+*           2003.04.03 V1.0
 *               创建单元
 ================================================================================
 |</PRE>}
@@ -43,33 +45,55 @@ uses
   CnHashLangStorage, CnLangMgr, CnClasses, CnWideCtrls, ExtCtrls;
 
 type
+  TCnSrcConvType = (sctUtf8, sctUtf16, sctAnsi, sctCRLF, sctLF);
+
+  TCnSrcConvertResult = (scrSucc, scrOpenError, scrSaveError, scrInvalidFormat);
 
 {$I WideCtrls.inc}
 
   TCnDTMainForm = class(TForm)
-    GroupBox1: TGroupBox;
-    rbFile: TRadioButton;
-    edtFile: TEdit;
-    rbDir: TRadioButton;
-    edtDir: TEdit;
-    cbSubDirs: TCheckBox;
-    GroupBox2: TGroupBox;
-    ListView: TListView;
-    sbFile: TSpeedButton;
-    sbDir: TSpeedButton;
     btnStart: TButton;
     btnClose: TButton;
     btnAbout: TButton;
     Label1: TLabel;
     lblURL: TLabel;
+    btnBinToTxt: TButton;
+    btnTxtToBin: TButton;
+    pgcMain: TPageControl;
+    tsDFM: TTabSheet;
+    bvl1: TBevel;
+    GroupBox1: TGroupBox;
+    sbFile: TSpeedButton;
+    sbDir: TSpeedButton;
+    rbFile: TRadioButton;
+    edtFile: TEdit;
+    rbDir: TRadioButton;
+    edtDir: TEdit;
+    cbSubDirs: TCheckBox;
     cbReadOnly: TCheckBox;
+    GroupBox2: TGroupBox;
+    ListView: TListView;
     OpenDialog: TOpenDialog;
     CnLangManager: TCnLangManager;
     CnHashLangFileStorage: TCnHashLangFileStorage;
     CnLangTranslator1: TCnLangTranslator;
-    btnBinToTxt: TButton;
-    btnTxtToBin: TButton;
-    bvl1: TBevel;
+    tsSource: TTabSheet;
+    grpSource: TGroupBox;
+    btnSrcOpen: TSpeedButton;
+    btnSrcBrowse: TSpeedButton;
+    rbSrcFile: TRadioButton;
+    edtSrcFile: TEdit;
+    rbSrcDir: TRadioButton;
+    edtSrcDir: TEdit;
+    chkSrcSub: TCheckBox;
+    chkSrcReadOnly: TCheckBox;
+    lblSrcConvertType: TLabel;
+    cbbSrcConv: TComboBox;
+    grpSrcResult: TGroupBox;
+    lvSrcResult: TListView;
+    lblSrcExt: TLabel;
+    dlgOpen: TOpenDialog;
+    cbbSrcFileType: TComboBox;
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure sbFileClick(Sender: TObject);
@@ -81,9 +105,14 @@ type
     procedure rbFileClick(Sender: TObject);
     procedure btnBinToTxtClick(Sender: TObject);
     procedure btnTxtToBinClick(Sender: TObject);
+    procedure pgcMainChange(Sender: TObject);
+    procedure btnSrcOpenClick(Sender: TObject);
+    procedure btnSrcBrowseClick(Sender: TObject);
   private
-    procedure ConvertAFile(const FileName: string);
-    procedure FileCallBack(const FileName: string; const Info: TSearchRec;
+    FConvType: TCnSrcConvType;
+    FSourcePattern: string;
+    procedure ConvertAFormFile(const FileName: string);
+    procedure FormFileCallBack(const FileName: string; const Info: TSearchRec;
       var Abort: Boolean);
     procedure BinToTextFile(const FileName: string);
     procedure BinToTextFileCallBack(const FileName: string; const Info: TSearchRec;
@@ -91,11 +120,23 @@ type
     procedure TextToBinFile(const FileName: string);
     procedure TextToBinFileCallBack(const FileName: string; const Info: TSearchRec;
       var Abort: Boolean);
+
+    procedure ConvertASourceFile(const FileName: string; ConvType: TCnSrcConvType);
+    procedure SourceFileCallBack(const FileName: string; const Info: TSearchRec;
+      var Abort: Boolean);
+
+    function InternalConvertSource(const FileName: string;
+      ConvType: TCnSrcConvType): TCnSrcConvertResult;
+    function InternalToUtf8(const FileName: string): TCnSrcConvertResult;
+    function InternalToUtf16(const FileName: string): TCnSrcConvertResult;
+    function InternalToAnsi(const FileName: string): TCnSrcConvertResult;
+    function InternalToCRLF(const FileName: string): TCnSrcConvertResult;
+    function InternalToLF(const FileName: string): TCnSrcConvertResult;
   protected
     procedure DoCreate; override;
     procedure TranslateStrings;
   public
-    { Public declarations }
+
   end;
 
 var
@@ -104,7 +145,7 @@ var
 implementation
 
 uses
-  CnWizDfm6To5, CnCommon, CnConsts, Registry, CnWizLangID;
+  CnWizDfm6To5, CnCommon, CnConsts, Registry, CnWizLangID, CnWideStrings;
 
 {$R *.DFM}
 
@@ -130,19 +171,26 @@ var
   SCnOpenFail: string = 'Open Failure.';
   SCnSaveFail: string = 'Save Failure.';
   SCnInvalidFormat: string = 'Invalid File Format.';
-  SCnAbout: string = 'DFM File Convert Tool' + #13#10#13#10 +
+  SCnAbout: string = 'DFM/Source File Convert Tool' + #13#10#13#10 +
     'This tool can be used to Convert Forms generated by Delphi 6/7' + #13#10 +
     'or C++Builder 6 or Above to Delphi 5 or C++ Builder 5 Format.' + #13#10 +
-    'Text and Binary Format Conversions are also Supported.' + #13#10#13#10 +
+    'Including Text and Binary Format Conversions.' + #13#10#13#10 +
+    'UTF-8/UTF-16/ANSI Source Format and CRLF/LF Line Break Conversions are also Supported.' + #13#10#13#10 +
     'Author: Zhou JingYu (zjy@cnpack.org)' + #13#10 +
     'Multilang: Liu Xiao (master@cnpack.org)' + #13#10 +
     'Copyright (C)2001-2026 CnPack Team';
 
-  SCnResults: array[TCnDFMConvertResult] of string =
-    ('SSucc', 'SOpenFail', 'SSaveFail', 'SInvalidFormat');
+  SCnResults: array[TCnDFMConvertResult] of PString =
+    (@SCnSucc, @SCnOpenFail, @SCnSaveFail, @SCnInvalidFormat);
+
+  SCnSrcResults: array[TCnSrcConvertResult] of PString =
+    (@SCnSucc, @SCnOpenFail, @SCnSaveFail, @SCnInvalidFormat);
 
 procedure TCnDTMainForm.FormCreate(Sender: TObject);
 begin
+  pgcMain.ActivePageIndex := 0;
+  cbbSrcConv.ItemIndex := 0;
+
   with TRegistryIniFile.Create(MakePath(SCnPackRegPath) + SCnPackToolRegPath) do
   try
     rbFile.Checked := ReadBool(csSection, csSelectFile, True);
@@ -173,7 +221,7 @@ begin
   end;
 end;
 
-procedure TCnDTMainForm.ConvertAFile(const FileName: string);
+procedure TCnDTMainForm.ConvertAFormFile(const FileName: string);
 var
   Res: TCnDFMConvertResult;
 begin
@@ -184,35 +232,62 @@ begin
   with ListView.Items.Add do
   begin
     Caption := FileName;
-    SubItems.Add(SCnResults[Res]);
+    SubItems.Add(SCnResults[Res]^);
   end;
 end;
 
-procedure TCnDTMainForm.FileCallBack(const FileName: string;
+procedure TCnDTMainForm.FormFileCallBack(const FileName: string;
   const Info: TSearchRec; var Abort: Boolean);
 begin
   if SameText(_CnExtractFileExt(FileName), '.DFM') then
-    ConvertAFile(FileName);
+    ConvertAFormFile(FileName);
 end;
 
 procedure TCnDTMainForm.btnStartClick(Sender: TObject);
 begin
-  ListView.Items.Clear;
-
-  if rbFile.Checked then
+  if pgcMain.ActivePage = tsDFM then
   begin
-    if FileExists(edtFile.Text) then
-      ConvertAFile(edtFile.Text)
+    ListView.Items.Clear;
+
+    if rbFile.Checked then
+    begin
+      if FileExists(edtFile.Text) then
+        ConvertAFormFile(edtFile.Text)
+      else
+        ErrorDlg(SCnOpenFileError, SCnErrorCaption);
+    end
     else
-      ErrorDlg(SCnOpenFileError, SCnErrorCaption);
+    begin
+      if not DirectoryExists(edtDir.Text) then
+        ErrorDlg(SCnDirNotExists, SCnErrorCaption)
+      else
+      begin
+        FindFile(edtDir.Text, '*.*', FormFileCallBack, nil, cbSubDirs.Checked);
+      end;
+    end;
   end
   else
   begin
-    if not DirectoryExists(edtDir.Text) then
-      ErrorDlg(SCnDirNotExists, SCnErrorCaption)
+    lvSrcResult.Items.Clear;
+
+    FConvType := TCnSrcConvType(cbbSrcConv.ItemIndex);
+    FSourcePattern := LowerCase(cbbSrcFileType.Text);
+
+    if rbSrcFile.Checked then
+    begin
+      if FileExists(edtSrcFile.Text) then
+        ConvertASourceFile(edtSrcFile.Text, FConvType)
+      else
+        ErrorDlg(SCnOpenFileError, SCnErrorCaption);
+    end
     else
     begin
-      FindFile(edtDir.Text, '*.*', FileCallBack, nil, cbSubDirs.Checked);
+      if not DirectoryExists(edtSrcDir.Text) then
+        ErrorDlg(SCnDirNotExists, SCnErrorCaption)
+      else
+      begin
+        FindFile(edtSrcDir.Text, '*.*', SourceFileCallBack, nil, cbSubDirs.Checked);
+      end;
     end;
   end;
 end;
@@ -293,11 +368,6 @@ begin
   TranslateStr(SCnSaveFail, 'SCnSaveFail');
   TranslateStr(SCnInvalidFormat, 'SCnInvalidFormat');
   TranslateStr(SCnAbout, 'SCnAbout');
-
-  SCnResults[crSucc] := SCnSucc;
-  SCnResults[crOpenError] := SCnOpenFail;
-  SCnResults[crSaveError] := SCnSaveFail;
-  SCnResults[crInvalidFormat] := SCnInvalidFormat;
 end;
 
 procedure TCnDTMainForm.btnBinToTxtClick(Sender: TObject);
@@ -355,7 +425,7 @@ begin
   with ListView.Items.Add do
   begin
     Caption := FileName;
-    SubItems.Add(SCnResults[Res]);
+    SubItems.Add(SCnResults[Res]^);
   end;
 end;
 
@@ -378,7 +448,7 @@ begin
   with ListView.Items.Add do
   begin
     Caption := FileName;
-    SubItems.Add(SCnResults[Res]);
+    SubItems.Add(SCnResults[Res]^);
   end;
 end;
 
@@ -388,6 +458,441 @@ begin
   if SameText(_CnExtractFileExt(FileName), '.DFM') or
     SameText(_CnExtractFileExt(FileName), '.XFM') then
     TextToBinFile(FileName);
+end;
+
+procedure TCnDTMainForm.pgcMainChange(Sender: TObject);
+begin
+  btnBinToTxt.Enabled := pgcMain.ActivePage = tsDFM;
+  btnTxtToBin.Enabled := pgcMain.ActivePage = tsDFM;
+end;
+
+procedure TCnDTMainForm.btnSrcOpenClick(Sender: TObject);
+begin
+  if dlgOpen.Execute then
+    edtSrcFile.Text := dlgOpen.FileName;
+end;
+
+procedure TCnDTMainForm.btnSrcBrowseClick(Sender: TObject);
+var
+  Dir: string;
+begin
+  Dir := edtSrcDir.Text;
+  if GetDirectory(SCnSelectDir, Dir) then
+    edtSrcDir.Text := Dir;
+end;
+
+procedure TCnDTMainForm.ConvertASourceFile(const FileName: string;
+  ConvType: TCnSrcConvType);
+var
+  Res: TCnSrcConvertResult;
+begin
+  if chkSrcReadOnly.Checked then
+    SetFileAttributes(PChar(FileName), FILE_ATTRIBUTE_NORMAL);
+
+  Res := InternalConvertSource(FileName, ConvType);
+  with lvSrcResult.Items.Add do
+  begin
+    Caption := FileName;
+    SubItems.Add(SCnSrcResults[Res]^);
+  end;
+end;
+
+procedure TCnDTMainForm.SourceFileCallBack(const FileName: string;
+  const Info: TSearchRec; var Abort: Boolean);
+var
+  Ext: string;
+begin
+  if (FSourcePattern = '') or (FSourcePattern = '*') or (FSourcePattern = '*.*') then
+    ConvertASourceFile(FileName, FConvType)
+  else
+  begin
+    Ext := LowerCase(ExtractFileExt(FileName));
+    if Pos(Ext, FSourcePattern) > 0 then
+      ConvertASourceFile(FileName, FConvType);
+  end;
+end;
+
+function TCnDTMainForm.InternalConvertSource(const FileName: string;
+  ConvType: TCnSrcConvType): TCnSrcConvertResult;
+begin
+  case ConvType of
+    sctUtf8:
+      Result := InternalToUtf8(FileName);
+    sctUtf16:
+      Result := InternalToUtf16(FileName);
+    sctAnsi:
+      Result := InternalToAnsi(FileName);
+    sctCRLF:
+      Result := InternalToCRLF(FileName);
+    sctLF:
+      Result := InternalToLF(FileName);
+  else
+    Result := scrInvalidFormat;
+  end;
+end;
+
+function TCnDTMainForm.InternalToAnsi(const FileName: string): TCnSrcConvertResult;
+var
+  List: TCnWideStringList;
+  TmpFile: string;
+begin
+  Result := scrOpenError;
+  if not FileExists(FileName) then
+    Exit;
+
+  List := TCnWideStringList.Create;
+  try
+    try
+      List.LoadFromFile(FileName);
+    except
+      Result := scrOpenError;
+      Exit;
+    end;
+
+    TmpFile := FileName + '.~tmp';
+    try
+      List.WriteBOM := False;
+      List.SaveToFile(TmpFile, wlfAnsi);
+    except
+      Result := scrSaveError;
+      Exit;
+    end;
+  finally
+    List.Free;
+  end;
+
+  try
+    DeleteFile(FileName);
+    if not RenameFile(TmpFile, FileName) then
+    begin
+      Result := scrSaveError;
+      Exit;
+    end;
+  except
+    Result := scrSaveError;
+    Exit;
+  end;
+
+  Result := scrSucc;
+end;
+
+function TCnDTMainForm.InternalToCRLF(const FileName: string): TCnSrcConvertResult;
+var
+  InStream, OutStream: TFileStream;
+  TmpFile: string;
+  B, NextB: Byte;
+  HasNext: Boolean;
+  // Buffer the output: collect non-newline bytes, flush before each newline.
+  // We track whether the last thing written was a newline so we can strip
+  // a trailing newline at the very end.
+  BufMem: TMemoryStream;
+
+  procedure FlushBuf;
+  begin
+    if BufMem.Size > 0 then
+    begin
+      BufMem.Position := 0;
+      OutStream.CopyFrom(BufMem, BufMem.Size);
+      BufMem.Clear;
+    end;
+  end;
+
+const
+  CRLF: array[0..1] of Byte = ($0D, $0A);
+begin
+  Result := scrOpenError;
+  if not FileExists(FileName) then
+    Exit;
+
+  TmpFile := FileName + '.~tmp';
+  try
+    InStream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
+  except
+    Exit;
+  end;
+
+  try
+    try
+      OutStream := TFileStream.Create(TmpFile, fmCreate);
+    except
+      InStream.Free;
+      Result := scrSaveError;
+      Exit;
+    end;
+
+    BufMem := TMemoryStream.Create;
+    try
+      // Read first byte
+      HasNext := InStream.Read(NextB, 1) = 1;
+
+      while HasNext do
+      begin
+        B := NextB;
+        HasNext := InStream.Read(NextB, 1) = 1;
+
+        if B = $0D then
+        begin
+          // CR: consume following LF if present (CRLF -> single newline)
+          if HasNext and (NextB = $0A) then
+          begin
+            HasNext := InStream.Read(NextB, 1) = 1;
+          end;
+          // Write buffered content then CRLF, but only if there is more data
+          // (to avoid trailing newline when the file ends right here)
+          if HasNext then
+          begin
+            FlushBuf;
+            OutStream.Write(CRLF, 2);
+          end
+          else
+          begin
+            // This newline is at the very end — drop it (no trailing newline)
+            BufMem.Clear;
+          end;
+        end
+        else if B = $0A then
+        begin
+          // Lone LF
+          if HasNext then
+          begin
+            FlushBuf;
+            OutStream.Write(CRLF, 2);
+          end
+          else
+          begin
+            BufMem.Clear;
+          end;
+        end
+        else
+        begin
+          BufMem.Write(B, 1);
+        end;
+      end;
+
+      // Flush any remaining non-newline bytes
+      FlushBuf;
+    finally
+      BufMem.Free;
+      OutStream.Free;
+    end;
+  finally
+    InStream.Free;
+  end;
+
+  // Replace original with temp file
+  try
+    DeleteFile(FileName);
+    if not RenameFile(TmpFile, FileName) then
+    begin
+      Result := scrSaveError;
+      Exit;
+    end;
+  except
+    Result := scrSaveError;
+    Exit;
+  end;
+
+  Result := scrSucc;
+end;
+
+function TCnDTMainForm.InternalToLF(const FileName: string): TCnSrcConvertResult;
+var
+  InStream, OutStream: TFileStream;
+  TmpFile: string;
+  B, NextB: Byte;
+  HasNext: Boolean;
+  BufMem: TMemoryStream;
+
+  procedure FlushBuf;
+  begin
+    if BufMem.Size > 0 then
+    begin
+      BufMem.Position := 0;
+      OutStream.CopyFrom(BufMem, BufMem.Size);
+      BufMem.Clear;
+    end;
+  end;
+
+const
+  LF: Byte = $0A;
+begin
+  Result := scrOpenError;
+  if not FileExists(FileName) then
+    Exit;
+
+  TmpFile := FileName + '.~tmp';
+  try
+    InStream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
+  except
+    Exit;
+  end;
+
+  try
+    try
+      OutStream := TFileStream.Create(TmpFile, fmCreate);
+    except
+      InStream.Free;
+      Result := scrSaveError;
+      Exit;
+    end;
+
+    BufMem := TMemoryStream.Create;
+    try
+      HasNext := InStream.Read(NextB, 1) = 1;
+
+      while HasNext do
+      begin
+        B := NextB;
+        HasNext := InStream.Read(NextB, 1) = 1;
+
+        if B = $0D then
+        begin
+          // CR: consume following LF if present (CRLF -> single newline)
+          if HasNext and (NextB = $0A) then
+          begin
+            HasNext := InStream.Read(NextB, 1) = 1;
+          end;
+          if HasNext then
+          begin
+            FlushBuf;
+            OutStream.Write(LF, 1);
+          end
+          else
+          begin
+            BufMem.Clear;
+          end;
+        end
+        else if B = $0A then
+        begin
+          // Lone LF
+          if HasNext then
+          begin
+            FlushBuf;
+            OutStream.Write(LF, 1);
+          end
+          else
+          begin
+            BufMem.Clear;
+          end;
+        end
+        else
+        begin
+          BufMem.Write(B, 1);
+        end;
+      end;
+
+      FlushBuf;
+    finally
+      BufMem.Free;
+      OutStream.Free;
+    end;
+  finally
+    InStream.Free;
+  end;
+
+  try
+    DeleteFile(FileName);
+    if not RenameFile(TmpFile, FileName) then
+    begin
+      Result := scrSaveError;
+      Exit;
+    end;
+  except
+    Result := scrSaveError;
+    Exit;
+  end;
+
+  Result := scrSucc;
+end;
+
+function TCnDTMainForm.InternalToUtf16(const FileName: string): TCnSrcConvertResult;
+var
+  List: TCnWideStringList;
+  TmpFile: string;
+begin
+  Result := scrOpenError;
+  if not FileExists(FileName) then
+    Exit;
+
+  List := TCnWideStringList.Create;
+  try
+    try
+      List.LoadFromFile(FileName);
+    except
+      Result := scrOpenError;
+      Exit;
+    end;
+
+    TmpFile := FileName + '.~tmp';
+    try
+      List.WriteBOM := True;
+      List.SaveToFile(TmpFile, wlfUnicode);
+    except
+      Result := scrSaveError;
+      Exit;
+    end;
+  finally
+    List.Free;
+  end;
+
+  try
+    DeleteFile(FileName);
+    if not RenameFile(TmpFile, FileName) then
+    begin
+      Result := scrSaveError;
+      Exit;
+    end;
+  except
+    Result := scrSaveError;
+    Exit;
+  end;
+
+  Result := scrSucc;
+end;
+
+function TCnDTMainForm.InternalToUtf8(const FileName: string): TCnSrcConvertResult;
+var
+  List: TCnWideStringList;
+  TmpFile: string;
+begin
+  Result := scrOpenError;
+  if not FileExists(FileName) then
+    Exit;
+
+  List := TCnWideStringList.Create;
+  try
+    try
+      List.LoadFromFile(FileName);
+    except
+      Result := scrOpenError;
+      Exit;
+    end;
+
+    TmpFile := FileName + '.~tmp';
+    try
+      List.WriteBOM := True;
+      List.SaveToFile(TmpFile, wlfUtf8);
+    except
+      Result := scrSaveError;
+      Exit;
+    end;
+  finally
+    List.Free;
+  end;
+
+  try
+    DeleteFile(FileName);
+    if not RenameFile(TmpFile, FileName) then
+    begin
+      Result := scrSaveError;
+      Exit;
+    end;
+  except
+    Result := scrSaveError;
+    Exit;
+  end;
+
+  Result := scrSucc;
 end;
 
 end.
