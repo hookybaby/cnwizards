@@ -580,108 +580,37 @@ end;
 
 function TCnDTMainForm.InternalToCRLF(const FileName: string): TCnSrcConvertResult;
 var
-  InStream, OutStream: TFileStream;
+  List: TCnWideStringList;
   TmpFile: string;
-  B, NextB: Byte;
-  HasNext: Boolean;
-  // Buffer the output: collect non-newline bytes, flush before each newline.
-  // We track whether the last thing written was a newline so we can strip
-  // a trailing newline at the very end.
-  BufMem: TMemoryStream;
-
-  procedure FlushBuf;
-  begin
-    if BufMem.Size > 0 then
-    begin
-      BufMem.Position := 0;
-      OutStream.CopyFrom(BufMem, BufMem.Size);
-      BufMem.Clear;
-    end;
-  end;
-
-const
-  CRLF: array[0..1] of Byte = ($0D, $0A);
+  Fmt: TCnWideListFormat;
 begin
   Result := scrOpenError;
   if not FileExists(FileName) then
     Exit;
 
-  TmpFile := FileName + '.~tmp';
-  try
-    InStream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
-  except
-    Exit;
-  end;
-
+  List := TCnWideStringList.Create;
   try
     try
-      OutStream := TFileStream.Create(TmpFile, fmCreate);
+      List.LoadFromFile(FileName);
     except
-      InStream.Free;
-      Result := scrSaveError;
+      Result := scrOpenError;
       Exit;
     end;
 
-    BufMem := TMemoryStream.Create;
+    Fmt := List.LoadFormat;
+    List.UseSingleLF := False;
+
+    TmpFile := FileName + '.~tmp';
     try
-      // Read first byte
-      HasNext := InStream.Read(NextB, 1) = 1;
-
-      while HasNext do
-      begin
-        B := NextB;
-        HasNext := InStream.Read(NextB, 1) = 1;
-
-        if B = $0D then
-        begin
-          // CR: consume following LF if present (CRLF -> single newline)
-          if HasNext and (NextB = $0A) then
-          begin
-            HasNext := InStream.Read(NextB, 1) = 1;
-          end;
-          // Write buffered content then CRLF, but only if there is more data
-          // (to avoid trailing newline when the file ends right here)
-          if HasNext then
-          begin
-            FlushBuf;
-            OutStream.Write(CRLF, 2);
-          end
-          else
-          begin
-            // This newline is at the very end ¡ª drop it (no trailing newline)
-            BufMem.Clear;
-          end;
-        end
-        else if B = $0A then
-        begin
-          // Lone LF
-          if HasNext then
-          begin
-            FlushBuf;
-            OutStream.Write(CRLF, 2);
-          end
-          else
-          begin
-            BufMem.Clear;
-          end;
-        end
-        else
-        begin
-          BufMem.Write(B, 1);
-        end;
-      end;
-
-      // Flush any remaining non-newline bytes
-      FlushBuf;
-    finally
-      BufMem.Free;
-      OutStream.Free;
+      List.SaveToFile(TmpFile, Fmt);
+    except
+      Result := scrSaveError;
+      Exit;
     end;
   finally
-    InStream.Free;
+    List.Free;
   end;
 
-  // Replace original with temp file
   try
     DeleteFile(FileName);
     if not RenameFile(TmpFile, FileName) then
@@ -699,97 +628,35 @@ end;
 
 function TCnDTMainForm.InternalToLF(const FileName: string): TCnSrcConvertResult;
 var
-  InStream, OutStream: TFileStream;
+  List: TCnWideStringList;
   TmpFile: string;
-  B, NextB: Byte;
-  HasNext: Boolean;
-  BufMem: TMemoryStream;
-
-  procedure FlushBuf;
-  begin
-    if BufMem.Size > 0 then
-    begin
-      BufMem.Position := 0;
-      OutStream.CopyFrom(BufMem, BufMem.Size);
-      BufMem.Clear;
-    end;
-  end;
-
-const
-  LF: Byte = $0A;
+  Fmt: TCnWideListFormat;
 begin
   Result := scrOpenError;
   if not FileExists(FileName) then
     Exit;
 
-  TmpFile := FileName + '.~tmp';
-  try
-    InStream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
-  except
-    Exit;
-  end;
-
+  List := TCnWideStringList.Create;
   try
     try
-      OutStream := TFileStream.Create(TmpFile, fmCreate);
+      List.LoadFromFile(FileName);
     except
-      InStream.Free;
-      Result := scrSaveError;
+      Result := scrOpenError;
       Exit;
     end;
 
-    BufMem := TMemoryStream.Create;
+    Fmt := List.LoadFormat;
+    List.UseSingleLF := True;
+
+    TmpFile := FileName + '.~tmp';
     try
-      HasNext := InStream.Read(NextB, 1) = 1;
-
-      while HasNext do
-      begin
-        B := NextB;
-        HasNext := InStream.Read(NextB, 1) = 1;
-
-        if B = $0D then
-        begin
-          // CR: consume following LF if present (CRLF -> single newline)
-          if HasNext and (NextB = $0A) then
-          begin
-            HasNext := InStream.Read(NextB, 1) = 1;
-          end;
-          if HasNext then
-          begin
-            FlushBuf;
-            OutStream.Write(LF, 1);
-          end
-          else
-          begin
-            BufMem.Clear;
-          end;
-        end
-        else if B = $0A then
-        begin
-          // Lone LF
-          if HasNext then
-          begin
-            FlushBuf;
-            OutStream.Write(LF, 1);
-          end
-          else
-          begin
-            BufMem.Clear;
-          end;
-        end
-        else
-        begin
-          BufMem.Write(B, 1);
-        end;
-      end;
-
-      FlushBuf;
-    finally
-      BufMem.Free;
-      OutStream.Free;
+      List.SaveToFile(TmpFile, Fmt);
+    except
+      Result := scrSaveError;
+      Exit;
     end;
   finally
-    InStream.Free;
+    List.Free;
   end;
 
   try
