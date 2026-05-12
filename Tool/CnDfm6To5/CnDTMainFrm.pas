@@ -85,7 +85,7 @@ type
     edtSrcFile: TEdit;
     rbSrcDir: TRadioButton;
     edtSrcDir: TEdit;
-    chkSrcSub: TCheckBox;
+    chkSrcSubDirs: TCheckBox;
     chkSrcReadOnly: TCheckBox;
     lblSrcConvertType: TLabel;
     cbbSrcConv: TComboBox;
@@ -199,6 +199,8 @@ begin
     edtDir.Text := ReadString(csSection, csDirName, '');
     cbSubDirs.Checked := ReadBool(csSection, csSubDirs, True);
     cbReadOnly.Checked := ReadBool(csSection, csReadOnly, True);
+    chkSrcSubDirs.Checked := ReadBool(csSection, csSubDirs, True);
+    chkSrcReadOnly.Checked := ReadBool(csSection, csReadOnly, True);
     rbFileClick(nil);
   finally
     Free;

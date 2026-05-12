@@ -1,6 +1,6 @@
 object CnDTMainForm: TCnDTMainForm
   Left = 223
-  Top = 129
+  Top = 108
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
   Caption = 'DFM/Source Convert Tool'
@@ -297,7 +297,7 @@ object CnDTMainForm: TCnDTMainForm
           Anchors = [akLeft, akTop, akRight]
           TabOrder = 2
         end
-        object chkSrcSub: TCheckBox
+        object chkSrcSubDirs: TCheckBox
           Left = 26
           Top = 100
           Width = 169
