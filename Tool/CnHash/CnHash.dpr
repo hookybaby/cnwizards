@@ -33,12 +33,17 @@ uses
   CnSM3 in '..\..\..\cnvcl\Source\Crypto\CnSM3.pas',
   CnSHA1 in '..\..\..\cnvcl\Source\Crypto\CnSHA1.pas',
   CnSHA2 in '..\..\..\cnvcl\Source\Crypto\CnSHA2.pas',
-  CnSHA3 in '..\..\..\cnvcl\Source\Crypto\CnSHA3.pas';
+  CnSHA3 in '..\..\..\cnvcl\Source\Crypto\CnSHA3.pas',
+  CnBLAKE in '..\..\..\cnvcl\Source\Crypto\CnBLAKE.pas',
+  CnBLAKE2 in '..\..\..\cnvcl\Source\Crypto\CnBLAKE2.pas',
+  CnBLAKE3 in '..\..\..\cnvcl\Source\Crypto\CnBLAKE3.pas';
 
 type
   TCnHashType = (
     htSM3, htMD5, htSHA1, htSHA224, htSHA256, htSHA384,
-    htSHA512, htSHA3_224, htSHA3_256, htSHA3_384, htSHA3_512
+    htSHA512, htSHA3_224, htSHA3_256, htSHA3_384, htSHA3_512,
+    htBLAKE224, htBLAKE256, htBLAKE384, htBLAKE512,
+    htBLAKE2S, htBLAKE2B, htBLAKE3
   );
   TCnHashTypes = set of TCnHashType;
 
@@ -46,7 +51,9 @@ const
   AlgNames: array[TCnHashType] of string = (
     'SM3', 'MD5', 'SHA1',
     'SHA224', 'SHA256', 'SHA384', 'SHA512',
-    'SHA3_224', 'SHA3_256', 'SHA3_384', 'SHA3_512'
+    'SHA3_224', 'SHA3_256', 'SHA3_384', 'SHA3_512',
+    'BLAKE224', 'BLAKE256', 'BLAKE384', 'BLAKE512',
+    'BLAKE2S', 'BLAKE2B', 'BLAKE3'
   );
 
 var
@@ -79,6 +86,13 @@ begin
   Writeln('  -SHA3_256   Calculate SHA3_256');
   Writeln('  -SHA3_384   Calculate SHA3_384');
   Writeln('  -SHA3_512   Calculate SHA3_512');
+  Writeln('  -BLAKE224   Calculate BLAKE-224');
+  Writeln('  -BLAKE256   Calculate BLAKE-256');
+  Writeln('  -BLAKE384   Calculate BLAKE-384');
+  Writeln('  -BLAKE512   Calculate BLAKE-512');
+  Writeln('  -BLAKE2S    Calculate BLAKE2s (256-bit)');
+  Writeln('  -BLAKE2B    Calculate BLAKE2b (512-bit)');
+  Writeln('  -BLAKE3     Calculate BLAKE3 (256-bit)');
   Writeln;
   Writeln('Options (Output):');
   Writeln('  -F          Output to Digest.txt');
@@ -86,6 +100,7 @@ begin
   Writeln('Examples:');
   Writeln('  CnHash file.txt');
   Writeln('  CnHash -MD5 -SHA1 *.txt');
+  Writeln('  CnHash -BLAKE2S -BLAKE3 file.bin');
 end;
 
 function GetHashStr(Alg: TCnHashType; const FileName: string): string;
@@ -103,6 +118,13 @@ begin
     htSHA3_256: Result := SHA3_256Print(SHA3_256File(FileName));
     htSHA3_384: Result := SHA3_384Print(SHA3_384File(FileName));
     htSHA3_512: Result := SHA3_512Print(SHA3_512File(FileName));
+    htBLAKE224: Result := BLAKE224Print(BLAKE224File(FileName));
+    htBLAKE256: Result := BLAKE256Print(BLAKE256File(FileName));
+    htBLAKE384: Result := BLAKE384Print(BLAKE384File(FileName));
+    htBLAKE512: Result := BLAKE512Print(BLAKE512File(FileName));
+    htBLAKE2S:  Result := BLAKE2SPrint(BLAKE2SFile(FileName));
+    htBLAKE2B:  Result := BLAKE2BPrint(BLAKE2BFile(FileName));
+    htBLAKE3:   Result := BLAKE3Print(BLAKE3File(FileName));
   end;
 end;
 
@@ -168,6 +190,13 @@ begin
         else if Arg = 'SHA3_256' then begin Include(SelectedAlgs, htSHA3_256); AlgFound := True; end
         else if Arg = 'SHA3_384' then begin Include(SelectedAlgs, htSHA3_384); AlgFound := True; end
         else if Arg = 'SHA3_512' then begin Include(SelectedAlgs, htSHA3_512); AlgFound := True; end
+        else if Arg = 'BLAKE224' then begin Include(SelectedAlgs, htBLAKE224); AlgFound := True; end
+        else if Arg = 'BLAKE256' then begin Include(SelectedAlgs, htBLAKE256); AlgFound := True; end
+        else if Arg = 'BLAKE384' then begin Include(SelectedAlgs, htBLAKE384); AlgFound := True; end
+        else if Arg = 'BLAKE512' then begin Include(SelectedAlgs, htBLAKE512); AlgFound := True; end
+        else if Arg = 'BLAKE2S' then begin Include(SelectedAlgs, htBLAKE2S); AlgFound := True; end
+        else if Arg = 'BLAKE2B' then begin Include(SelectedAlgs, htBLAKE2B); AlgFound := True; end
+        else if Arg = 'BLAKE3' then begin Include(SelectedAlgs, htBLAKE3); AlgFound := True; end
         else if Arg = 'F' then OutputToFile := True
         else
           Writeln('Unknown option: ' + ParamStr(I));
