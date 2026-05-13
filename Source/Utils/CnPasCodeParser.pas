@@ -1608,6 +1608,7 @@ var
   MyTokenID: TTokenKind;
   Bookmark: TmwPasLexBookmark;
 
+  // 注意 while (Lex.TokenPos < CurrPos) 的方式调用 DoNext 可能会造成忽略光标在注释处的问题
   procedure DoNext(NoJunk: Boolean = False);
   begin
     PosInfo.LastIdentPos := Lex.LastIdentPos;
@@ -1769,6 +1770,14 @@ begin
                   begin
                     SavePos := PosInfo.PosKind;
                     PosInfo.PosKind := pkString;
+                  end;
+                end
+                else if Lex.TokenID in [tkAnsiComment, tkBorComment, tkSlashesComment] then
+                begin // uses 里碰到注释跳出时如不加这段，会认为不在注释里
+                  if PosInfo.PosKind <> pkComment then
+                  begin
+                    SavePos := PosInfo.PosKind;
+                    PosInfo.PosKind := pkComment;
                   end;
                 end;
                 DoNext;
