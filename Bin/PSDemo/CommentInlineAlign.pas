@@ -22,7 +22,7 @@ uses
 
 var
   Lines: TStringList;
-  I, FirstCommentIdx, CommentIdx, TargetPos, CodeLen: Integer;
+  I, FirstCommentIdx, TargetPos, CodeLen: Integer;
   ALine, CodePart, CommentPart: string;
   CommentPos: array of Integer;
 begin
