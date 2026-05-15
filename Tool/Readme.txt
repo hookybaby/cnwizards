@@ -2,6 +2,7 @@ Tools 辅助工具目录
 =================
 
 该目录存放由 CnPack 开发组编写的辅助工具源码。其中目录名以 Cn 开头的是打包供外发的，反之为内部工具，形式分独立运行的 EXE 和被加载的 DLL 两种。
+部分 EXE 可能需要以管理员方式运行，但嵌入了 manifest 到资源中似乎也无效（无论是现成的 WindowsXP.res 还是每次从 CnToolsManifest.template.rc 中将 CnToolUAC.manifest 打包进来），无法自动弹UAC提示框，只能让用户手工处理。
 
 CnAsciiChart
 ------
