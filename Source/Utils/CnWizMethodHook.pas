@@ -267,6 +267,7 @@ resourcestring
   SCnFailInstallHook = 'Failed to Install Method Hook';
   SCnFailUninstallHook = 'Failed to Uninstall Method Hook';
   SCnErrorNoDDetours = 'DDetours NOT Included. Can NOT Hook.';
+  SCnErrorMethodPointer = 'Invalid Method Pointer';
 
 const
   csJmpCode = $E9;              // 相对跳转指令机器码
@@ -418,6 +419,8 @@ constructor TCnMethodHook.Create(const AOldMethod, ANewMethod: Pointer;
   UseDDteoursHook, DefaultHook: Boolean);
 begin
   inherited Create;
+  if (AOldMethod = nil) or (ANewMethod = nil) then
+    raise Exception.Create(SCnErrorMethodPointer);
 {$IFNDEF USE_DDETOURS_HOOK}
   if UseDDteoursHook then
     raise Exception.Create(SCnErrorNoDDetours);
