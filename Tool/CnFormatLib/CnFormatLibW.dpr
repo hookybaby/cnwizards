@@ -24,14 +24,18 @@ uses
   SysUtils,
   Classes,
   CnFormatterIntf in '..\..\Source\CodeFormatter\CnFormatterIntf.pas',
+  CnCppCodeFormatter in '..\..\Source\CodeFormatter\CnCppCodeFormatter.pas',
+  CnCppToken in '..\..\Source\CodeFormatter\CppParser\CnCppToken.pas',
+  CnCppScanner in '..\..\Source\CodeFormatter\CppParser\CnCppScanner.pas',
+  CnCppCodeGenerator in '..\..\Source\CodeFormatter\CppParser\CnCppCodeGenerator.pas',
   CnCodeFormatterImplW in 'CnCodeFormatterImplW.pas',
-  CnCodeFormatter in '..\..\Source\CodeFormatter\CnCodeFormatter.pas',
+  CnPasCodeFormatter in '..\..\Source\CodeFormatter\CnPasCodeFormatter.pas',
   CnCodeFormatRules in '..\..\Source\CodeFormatter\CnCodeFormatRules.pas',
-  CnCodeGenerators in '..\..\Source\CodeFormatter\Parser\CnCodeGenerators.pas',
-  CnParseConsts in '..\..\Source\CodeFormatter\Parser\CnParseConsts.pas',
-  CnPascalGrammar in '..\..\Source\CodeFormatter\Parser\CnPascalGrammar.pas',
-  CnScanners in '..\..\Source\CodeFormatter\Parser\CnScanners.pas',
-  CnTokens in '..\..\Source\CodeFormatter\Parser\CnTokens.pas';
+  CnPasCodeGenerator in '..\..\Source\CodeFormatter\PasParser\CnPasCodeGenerator.pas',
+  CnParseConsts in '..\..\Source\CodeFormatter\CnParseConsts.pas',
+  CnPascalGrammar in '..\..\Source\CodeFormatter\PasParser\CnPascalGrammar.pas',
+  CnPasScanner in '..\..\Source\CodeFormatter\PasParser\CnPasScanner.pas',
+  CnPasToken in '..\..\Source\CodeFormatter\PasParser\CnPasToken.pas';
 
 {$R *.RES}
 

@@ -112,7 +112,7 @@ var
   ASet: TCnCompilers;
   Cds: TCopyDataStruct;
   Cmd: PCnWizMessage;
-  HWnd: Cardinal;
+  H: HWND;
   S: AnsiString;
   DataLength, Cnt: Integer;
 begin
@@ -122,8 +122,8 @@ begin
   if (Length(DestID) > CN_WIZ_MAX_ID) or (Length(SourceID) > CN_WIZ_MAX_ID) then
     Exit;
 
-  HWnd := FindWindowEx(0, 0, PChar(SCN_WIZ_CMD_WINDOW_NAME), nil);
-  if HWnd = 0 then // 无目的窗口则退出
+  H := FindWindowEx(0, 0, PChar(SCN_WIZ_CMD_WINDOW_NAME), nil);
+  if H = 0 then // 无目的窗口则退出
   begin
 {$IFDEF DEBUG}
     CnDebugger.LogMsgError('SendCommand: No Target Found.');
@@ -140,6 +140,10 @@ begin
   else
     DataLength := 0;
 
+  if DataLength > CN_WIZ_MAX_DATA then
+    Exit;
+
+  FillChar(Cds, SizeOf(Cds), 0);
   Cds.cbData := SizeOf(TCnWizMessage) - SizeOf(Cardinal) + DataLength;
 
   GetMem(Cds.lpData, Cds.cbData);
@@ -164,21 +168,22 @@ begin
 
   try
     Cnt := 0;
-    while HWnd <> 0 do
+    while H <> 0 do
     begin
       Inc(Cnt);
 {$IFDEF DEBUG}
-      CnDebugger.LogFmt('SendCommand: Found %d Target %8.8x', [Cnt, HWnd]);
+      CnDebugger.LogFmt('SendCommand: Found %d Target %p', [Cnt, Pointer(H)]);
 {$ENDIF}
-      if GetCurrentThreadId <> GetWindowThreadProcessId(HWnd, nil) then
+      if GetCurrentThreadId <> GetWindowThreadProcessId(H, nil) then
       begin
         // 只发给调用者线程之外的窗口
-        Result := Boolean(SendMessage(HWnd, WM_COPYDATA, 0, LPARAM(@Cds)));
+        Result := Boolean(SendMessage(H, WM_COPYDATA, 0, LPARAM(@Cds)));
 {$IFDEF DEBUG}
-        CnDebugger.LogFmt('SendCommand: %d Target %8.8x Sent. Result: %d', [Cnt, HWnd, Integer(Result)]);
+        CnDebugger.LogFmt('SendCommand: %d Target %p Sent. Result: %d',
+          [Cnt, Pointer(H), Integer(Result)]);
 {$ENDIF}
       end;
-      HWnd := FindWindowEx(0, HWnd, PChar(SCN_WIZ_CMD_WINDOW_NAME), nil);
+      H := FindWindowEx(0, H, PChar(SCN_WIZ_CMD_WINDOW_NAME), nil);
     end;
   finally
     FreeMem(Cds.lpData);

@@ -37,6 +37,7 @@
   {$DEFINE SUPPORT_ENCODING}                   // Unicode 字符串支持 Encoding 转换
   {$DEFINE SUPPORT_INLINE}                     // 支持 inline
   {$DEFINE SUPPORT_INTERFACE_AS_OBJECT}        // 支持从接口实例寻找其实现对象实例
+  {$DEFINE SUPPORT_DEPRECATED}                 // 支持 deprecated 关键字
   {$DEFINE NEW_SETTING_DELIMITER}              // 也有 TStringHelper.LastDelimiter 带来的不兼容
 
   {$DEFINE OBJECT_HAS_TOSTRING}                // TObject.ToString
@@ -59,7 +60,7 @@
     {$DEFINE CPUX86}
     {$asmMode intel}
   {$ENDIF}
-  {$IFDEF CPUi386}
+  {$IFDEF CPUI386}
     {$DEFINE CPU32BITS}
     {$DEFINE CPUX86}
     {$asmMode intel}
@@ -91,6 +92,14 @@
     {$DEFINE CPU64BITS}
     {$DEFINE CPUARM}
     {$DEFINE CPUARM64}
+  {$ENDIF}
+
+  {$IFDEF CPUX64}
+    {$IFNDEF MSWINDOWS}
+      {$DEFINE CALL_SYSV_AMD64}
+      // FPC 在 64 位 Intel、非 Windows 下的调用约定是 AMD 的 SYSV（RDI、RSI、RDX、RCX、R8、R9）
+      // 而不是 Microsoft x64 ABI（RCX、RDX、R8、R9 ）
+    {$ENDIF}
   {$ENDIF}
 
   {$mode Delphi}       // Delphi Compatibility, not DelphiUnicode。注意源码中勿重复声明
@@ -3557,10 +3566,6 @@
   {$DEFINE IDE_HAS_INSIGHT}             // XE5 及以上有 IDE Insight Bar
 {$ENDIF}
 
-{$IFDEF DELPHIXE5}
-  {$DEFINE FMX_PIXELFORMATS}            // XE5 FMX 有独立的 PixelFormats 单元，XE 6 才没
-{$ENDIF}
-
 {$IFDEF DELPHIXE4_UP}
   {$IFNDEF DISABLE_FMX}
     {$DEFINE SUPPORT_FMX_FRAME}         // XE4 及以上的 FMX 支持 FMX Frame
@@ -3569,20 +3574,16 @@
   {$DEFINE MEMO_CARETPOS_BUG}           // XE3 及以下的 Memo CaretPos 在碰到大文件时会出现负值
 {$ENDIF}
 
-{$IFDEF DELPHIXE4}
-  {$DEFINE FMX_PIXELFORMATS}            // XE4 FMX 有独立的 PixelFormats 单元，XE 6 才没
-{$ENDIF}
-
 {$IFDEF DELPHIXE3_UP}
+  {$IFNDEF DELPHIXE6_UP}
+    {$DEFINE FMX_PIXELFORMATS}          // XE3/4/5 FMX 有独立的 PixelFormats 单元，XE 6 才没
+  {$ENDIF}
+
   {$DEFINE SUPPORT_ATOMIC}              // XE3 有 Atomic 相关函数
   {$DEFINE TCONTROL_HAS_STYLEELEMENTS}  // XE3 的 TControl 开始有 StyleElements 属性
   {$DEFINE FMX_TBITMAP_MAP}             // XE3 及以上 FMX 的 TBitmap 能 Map 成 TBitmapData
   {$DEFINE NEW_SETTING_DELIMITER}       // FormatSettings 和 TStringHelper.LastDelimiter 带来了不兼容问题
   {$DEFINE IDE_NP_FMX_DESIGN_BUG}       // XE3 FMX Designer Cut/Copy/Paste cause AV Bug for -np switch
-{$ENDIF}
-
-{$IFDEF DELPHIXE3}
-  {$DEFINE FMX_PIXELFORMATS}            // XE3 FMX 有独立的 PixelFormats 单元，XE6 才没
 {$ENDIF}
 
 {$IFDEF DELPHIXE2_UP}
@@ -3618,10 +3619,15 @@
 {$ENDIF}
 
 {$IFDEF DELPHIXE_UP}
+  {$DEFINE SUPPORT_GLOBAL_FORMAT_SETTINGS}     // XE 开始有全局 FormatSettings 记录
   {$DEFINE TSTRINGS_HAS_WRITEBOM}              // XE 的 TStrings 开始有 WriteBOM 属性
   {$DEFINE FONT_HAS_QUALITY}                   // XE 的 TFont 开始有 Quality 属性，包括 AntiAliasing
   {$DEFINE IDE_HAS_DEBUGGERVISUALIZER}         // XE 的 ToolsAPI 开始有 Debugger Visualizer 相关接口
   {$DEFINE IDE_HAS_STRINGS_VISUALIZAER}        // XE 的调试器中有 TStrings Visualizer
+{$ENDIF}
+
+{$IFDEF DELPHIXE}
+  {$DEFINE DYNARRAY_PARAM_NO_DEFVALUE_BUG}     // XE 的 TBytes 等类型在函数参数中不能带默认值，高低版本都行
 {$ENDIF}
 
 {$IFDEF BDS2010_UP}
@@ -3657,18 +3663,21 @@
   {$DEFINE SUPPORT_OTA_PROJECT_CONFIGURATION}
 
   {$DEFINE IDE_MAINFORM_EAT_MOUSEWHEEL}
-  // MainForm of 2009 or Above will eat Message in MouseWheelHandler
+  // 2009 或以上版本的 IDE 主窗体会在 MouseWheelHandler 里吃掉消息
   {$DEFINE IDE_CODEINSIGHT_AUTOINVOKE}
-  // IDE Code Insight has Auto Invoke Option
+  // IDE Code Insight 有自动弹出的选项
   {$DEFINE EDITVIEW_CONVERTPOS_BUG}
-  // 2009 or Above IEditView.ConvertPos Incorrect when Meeting Unicode Chars
+  // 2009 或以上版本的 IEditView.ConvertPos 在碰到 Unicode 字符时计算不准确
 
-  {$IFNDEF DELPHIXE2_UP}  // 2009/2010/XE has a Project Version Number Bug
+  {$IFNDEF DELPHIXE2_UP}  // 2009/2010/XE 的工程版本号有 Bug
     {$DEFINE PROJECT_VERSION_NUMBER_BUG}
   {$ENDIF}
+  {$IFNDEF DELPHIXE4_UP}  // 2009 ~ XE3 在 const 太长时会编译出错
+    {$DEFINE LOCAL_CONST_TOOMANY_BUG}
+  {$ENDIF}
   {$DEFINE OTA_DPKOPTION_SETVALUE_CORRUPT_BUG}
-  // A OpenTools API Bug IOTAProjectOptions.SetOptionValue under 2009 or above:
-  // Set an Option Value to DPK Project Options maybe cause DPK Source Corrupt
+  // 2009 或以上版本的 OpenTools API 的 IOTAProjectOptions.SetOptionValue 有 Bug
+  // 调用该接口设置 DPK 的工程选项时，可能会导致 DPK 源码损坏或乱码
 {$ELSE}
   {$DEFINE ZLIB_STREAM_NOSIZE}           // 2007 及以下的 Zlib 的解压缩流不支持 Size 操作
 {$ENDIF}
@@ -3737,7 +3746,7 @@
 {$ENDIF}
 
 {$IFDEF DELPHI7_UP}
-  {$DEFINE SUPPORT_FORMAT_SETTINGS}       // Delphi 7 开始支持 FormatSettings
+  {$DEFINE SUPPORT_FORMAT_SETTINGS}       // Delphi 7 开始支持 FormatSettings 记录
   {$DEFINE OTA_CODEINSIGHT_MANAGER}       // Delphi 7 才有 IOTACodeInsightManager 接口
   {$DEFINE IDE_MENUBAR_VERTICAL_POSITION_BUG}
   // Delphi 7 及以上的 MenuBar 的竖直方向上的弹出位置计算错误，容易超出上界
@@ -3873,4 +3882,18 @@
 {$ENDIF}
 
 {$ENDIF FPC}
+
+// 以下是编译器无关的封装定义
+
+{$IFDEF CPU386}
+  {$DEFINE CPUX86ORX64}  // 定义一个 CPUX86ORX64 以方便 Intel 32 位 与 64 位使用
+{$ENDIF}
+
+{$IFDEF CPUX86}
+  {$DEFINE CPUX86ORX64}
+{$ENDIF}
+
+{$IFDEF CPUX64}
+  {$DEFINE CPUX86ORX64}
+{$ENDIF}
 

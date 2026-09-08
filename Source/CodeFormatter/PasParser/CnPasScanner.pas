@@ -18,7 +18,7 @@
 {                                                                              }
 {******************************************************************************}
 
-unit CnScanners;
+unit CnPasScanner;
 {* |<PRE>
 ================================================================================
 * 软件名称：CnPack 代码格式化专家
@@ -36,8 +36,8 @@ unit CnScanners;
 *           另外，Unicode 编译器中，才支持 Unicode 标识符和全角空格
 *
 * 开发平台：Win2003 + Delphi 5.0
-* 兼容测试：not test yet
-* 本 地 化：not test hell
+* 兼容测试：无
+* 本 地 化：无
 * 修改记录：2007-10-13 V1.0
 *               完善一些功能
 *           2004-1-14 V0.5
@@ -53,7 +53,7 @@ interface
 
 uses
   Classes, SysUtils, Contnrs, CnFormatterIntf, CnNative,
-  CnParseConsts, CnTokens, CnCodeGenerators, CnCodeFormatRules;
+  CnParseConsts, CnPasToken, CnPasCodeGenerator, CnCodeFormatRules;
 
 type
   TScannerBookmark = packed record
@@ -71,6 +71,12 @@ type
     OldSourceColPtrBookmark: PChar;
     PrevTokenBookmark: TPascalToken;
     PrevEffectiveeTokenBookmark: TPascalToken;
+    BlankLinesBookmark: Integer;
+    BlankLinesAfterCommentBookmark: Integer;
+    FirstCommentInBlockBookmark: Boolean;
+    PreviousIsCommentBookmark: Boolean;
+    BackwardTokenBookmark: TPascalToken;
+    JustWroteBlockCommentBookmark: Boolean;
   end;
 
   TGetBooleanEvent = function(Sender: TObject): Boolean of object;
@@ -601,6 +607,12 @@ begin
       FBlankLinesAfter := BlankLinesAfterBookmark;
       FPrevBlankLines := PrevBlankLinesBookmark;
       FInIgnoreArea := InIgnoreAreaBookmark;
+      FBlankLines := BlankLinesBookmark;
+      FBlankLinesAfterComment := BlankLinesAfterCommentBookmark;
+      FFirstCommentInBlock := FirstCommentInBlockBookmark;
+      FPreviousIsComment := PreviousIsCommentBookmark;
+      FBackwardToken := BackwardTokenBookmark;
+      FJustWroteBlockComment := JustWroteBlockCommentBookmark;
     end
     else
       Error(CN_ERRCODE_PASCAL_INVALID_BOOKMARK);
@@ -625,6 +637,12 @@ begin
     BlankLinesAfterBookmark := FBlankLinesAfter;
     PrevBlankLinesBookmark := FPrevBlankLines;
     InIgnoreAreaBookmark := FInIgnoreArea;
+    BlankLinesBookmark := FBlankLines;
+    BlankLinesAfterCommentBookmark := FBlankLinesAfterComment;
+    FirstCommentInBlockBookmark := FFirstCommentInBlock;
+    PreviousIsCommentBookmark := FPreviousIsComment;
+    BackwardTokenBookmark := FBackwardToken;
+    JustWroteBlockCommentBookmark := FJustWroteBlockComment;
   end;
 end;
 
@@ -925,19 +943,19 @@ begin
   // 如出现换行，换行处 SourceCol 被置 1、OldCol 被赋值为换行处，末了仍然是 NewSourceCol += P - OldCol;
 
   case P^ of
-    'A'..'Z', 'a'..'z', '_' {$IFDEF UNICODE}, #$0100..#$FFFF {$ENDIF}:
+    'A'..'Z', 'a'..'z', '_' {$IFDEF UNICODE}, #$0080..#$FFFF {$ENDIF}:
       begin
         Inc(P);
         if FIdentContainsDot then // 如果外部要求标识符包括点号如单元名等
         begin
           while (P^ in ['A'..'Z', 'a'..'z', '0'..'9', '_', '.'])
-            {$IFDEF UNICODE} or ((P^ >= #$0100) and (P^ <> '　')) {$ENDIF} do
+            {$IFDEF UNICODE} or ((P^ >= #$0080) and (P^ <> '　')) {$ENDIF} do
             Inc(P);
         end
         else  // 注意 Unicode 环境下，Unicode 标识符不包括全角空格，全角空格做半角空格用
         begin
           while (P^ in ['A'..'Z', 'a'..'z', '0'..'9', '_'])
-            {$IFDEF UNICODE} or ((P^ >= #$0100) and (P^ <> '　')) {$ENDIF} do
+            {$IFDEF UNICODE} or ((P^ >= #$0080) and (P^ <> '　')) {$ENDIF} do
             Inc(P);
         end;
         Result := tokSymbol;

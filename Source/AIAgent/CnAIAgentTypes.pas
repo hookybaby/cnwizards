@@ -94,7 +94,7 @@ implementation
 function ACPBuildClientCapabilities(FSReadText, FSWriteText,
   Terminal: Boolean; ToolDescriptions: TCnJSONArray): TCnJSONObject;
 var
-  FSObj: TCnJSONObject;
+  FSObj, MetaObj: TCnJSONObject;
 begin
   Result := TCnJSONObject.Create;
   FSObj := TCnJSONObject.Create;
@@ -103,7 +103,14 @@ begin
   Result.AddPair('fs', FSObj);
   Result.AddPair('terminal', Terminal);
   if ToolDescriptions <> nil then
-    Result.AddPair('tools', ToolDescriptions);
+  begin
+    // ACP 未定义顶层 clientCapabilities.tools 成员。
+    // 将 CnWizards 特有的工具描述放入 _meta，使严格的 ACP Agent
+    // 可以忽略这些信息，而不会拒绝 initialize 请求。
+    MetaObj := TCnJSONObject.Create;
+    MetaObj.AddPair('cnwizardsTools', ToolDescriptions);
+    Result.AddPair('_meta', MetaObj);
+  end;
 end;
 
 function ACPBuildClientInfo(const Name, Title, Version: string): TCnJSONObject;

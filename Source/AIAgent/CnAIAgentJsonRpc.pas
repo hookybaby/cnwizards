@@ -100,8 +100,14 @@ begin
     ID := V.AsString
   else if V is TCnJSONNumber then
     ID := V.AsString
+  else if V is TCnJSONNull then
+    ID := ''
   else
-    ID := V.AsString;
+  begin
+    Result := False;
+    HasID := False;
+    Exit;
+  end;
   Result := True;
 end;
 
@@ -237,6 +243,7 @@ function ACPParseMessage(const JsonLine: AnsiString; Msg: TCnACPParsedMessage): 
 var
   Root: TCnJSONObject;
   V: TCnJSONValue;
+  HasMethod, HasResult, HasError: Boolean;
 begin
   Result := False;
   if Msg = nil then
@@ -250,28 +257,46 @@ begin
   try
     // Basic shape validation
     V := Root.ValueByName['jsonrpc'];
-    if (V = nil) or (V.AsString <> CN_ACP_JSONRPC_VERSION) then
+    if not (V is TCnJSONString) or (V.AsString <> CN_ACP_JSONRPC_VERSION) then
       Exit;
 
-    ACPExtractIDAsString(Root, 'id', Msg.FID, Msg.FHasID);
+    if not ACPExtractIDAsString(Root, 'id', Msg.FID, Msg.FHasID) then
+      Exit;
 
-    if Root.ValueByName['method'] <> nil then
+    HasMethod := Root.ValueByName['method'] <> nil;
+    HasResult := Root.ValueByName['result'] <> nil;
+    HasError := Root.ValueByName['error'] <> nil;
+    if HasMethod and (HasResult or HasError) then
+      Exit;
+    if not HasMethod and (HasResult = HasError) then
+      Exit;
+
+    if HasMethod then
     begin
+      if not (Root.ValueByName['method'] is TCnJSONString) then
+        Exit;
       Msg.Method := Root.ValueByName['method'].AsString;
+      if Msg.Method = '' then
+        Exit;
       if Root.ValueByName['params'] <> nil then
+      begin
+        if not (Root.ValueByName['params'] is TCnJSONObject) and
+           not (Root.ValueByName['params'] is TCnJSONArray) then
+          Exit;
         Msg.Params := Root.ValueByName['params'].Clone;
+      end;
 
       if Msg.HasID then
         Msg.Kind := amkRequest
       else
         Msg.Kind := amkNotification;
     end
-    else if Root.ValueByName['result'] <> nil then
+    else if HasResult then
     begin
       Msg.Kind := amkResponse;
       Msg.ResultValue := Root.ValueByName['result'].Clone;
     end
-    else if (Root.ValueByName['error'] <> nil) and (Root.ValueByName['error'] is TCnJSONObject) then
+    else if Root.ValueByName['error'] is TCnJSONObject then
     begin
       Msg.Kind := amkResponse;
       Msg.ErrorObj := TCnJSONObject(Root.ValueByName['error'].Clone);
@@ -286,5 +311,4 @@ begin
 end;
 
 {$ENDIF CNWIZARDS_CNAICODERWIZARD}
-
 end.

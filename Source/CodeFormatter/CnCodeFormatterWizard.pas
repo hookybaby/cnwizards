@@ -58,7 +58,8 @@ type
     FIdOptions: Integer;
     FIdFormatCurrent: Integer;
     FLibHandle: THandle;
-    FGetProvider: TCnGetFormatterProvider;
+    FGetPasProvider: TCnGetPasFormatterProvider;
+    FGetCppProvider: TCnGetCppFormatterProvider;
 
     // Pascal Format Settings
     FDirectiveMode: TCnCompDirectiveMode;
@@ -71,12 +72,26 @@ type
     FTabSpaceCount: Byte;
     FSpaceTabASMKeyword: Byte;
     FWrapWidth: Integer;
-    FBeginStyle: TCnBeginStyle;
-    FElseAfterEndStyle: TCnElseAfterEndStyle;
-    FKeywordStyle: TCnKeywordStyle;
+    FBeginStyle: TCnPasBeginStyle;
+    FElseAfterEndStyle: TCnPasElseAfterEndStyle;
+    FKeywordStyle: TCnPasKeywordStyle;
     FWrapMode: TCnCodeWrapMode;
     FWrapNewLineWidth: Integer;
     FUseIDESymbols: Boolean;
+
+    // C/C++ Format Settings
+    FCppTabSpaceCount: Byte;
+    FCppCodeWrapMode: TCnCodeWrapMode;
+    FCppWrapWidth: Integer;
+    FCppWrapNewLineWidth: Integer;
+    FCppKeepUserLineBreak: Boolean;
+    FCppBraceStyle: TCnCppBraceStyle;
+    FCppElseStyle: TCnCppElseStyle;
+    FCppSpaceBeforeBinaryOperator: Byte;
+    FCppSpaceAfterBinaryOperator: Byte;
+    FCppSpaceBeforeASM: Byte;
+    FCppSpaceTabASMKeyword: Byte;
+    FCppUseIgnoreArea: Boolean;
 
     FBreakpoints: TObjectList;  // 文件的断点信息
     FBookmarks: TObjectList;    // 文件的书签信息
@@ -116,7 +131,10 @@ type
       View: TCnEditViewSourceInterface): Boolean;
 
     function PutPascalFormatRules: Boolean;
-    function GetErrorStr(Err: Integer): string;
+    function PutCppFormatRules: Boolean;
+    procedure FormatCpp;
+    function GetCppErrorStr(Err: Integer): string;
+    function GetPasErrorStr(Err: Integer): string;
   protected
     function GetHasConfig: Boolean; override;
     procedure SubActionExecute(Index: Integer); override;
@@ -139,9 +157,9 @@ type
     procedure DebugComand(Cmds: TStrings; Results: TStrings); override;
 
     property DirectiveMode: TCnCompDirectiveMode read FDirectiveMode write FDirectiveMode;
-    property KeywordStyle: TCnKeywordStyle read FKeywordStyle write FKeywordStyle;
-    property BeginStyle: TCnBeginStyle read FBeginStyle write FBeginStyle;
-    property ElseAfterEndStyle: TCnElseAfterEndStyle read FElseAfterEndStyle write FElseAfterEndStyle;
+    property KeywordStyle: TCnPasKeywordStyle read FKeywordStyle write FKeywordStyle;
+    property BeginStyle: TCnPasBeginStyle read FBeginStyle write FBeginStyle;
+    property ElseAfterEndStyle: TCnPasElseAfterEndStyle read FElseAfterEndStyle write FElseAfterEndStyle;
     property WrapMode: TCnCodeWrapMode read FWrapMode write FWrapMode;
     property TabSpaceCount: Byte read FTabSpaceCount write FTabSpaceCount;
     property SpaceBeforeOperator: Byte read FSpaceBeforeOperator write
@@ -156,11 +174,24 @@ type
     property UseIgnoreArea: Boolean read FUseIgnoreArea write FUseIgnoreArea;
     property KeepUserLineBreak: Boolean read FKeepUserLineBreak write FKeepUserLineBreak;
     property UseIDESymbols: Boolean read FUseIDESymbols write FUseIDESymbols;
+    property CppTabSpaceCount: Byte read FCppTabSpaceCount write FCppTabSpaceCount;
+    property CppCodeWrapMode: TCnCodeWrapMode read FCppCodeWrapMode write FCppCodeWrapMode;
+    property CppWrapWidth: Integer read FCppWrapWidth write FCppWrapWidth;
+    property CppWrapNewLineWidth: Integer read FCppWrapNewLineWidth write FCppWrapNewLineWidth;
+    property CppKeepUserLineBreak: Boolean read FCppKeepUserLineBreak write FCppKeepUserLineBreak;
+    property CppBraceStyle: TCnCppBraceStyle read FCppBraceStyle write FCppBraceStyle;
+    property CppElseStyle: TCnCppElseStyle read FCppElseStyle write FCppElseStyle;
+    property CppSpaceBeforeBinaryOperator: Byte read FCppSpaceBeforeBinaryOperator write FCppSpaceBeforeBinaryOperator;
+    property CppSpaceAfterBinaryOperator: Byte read FCppSpaceAfterBinaryOperator write FCppSpaceAfterBinaryOperator;
+    property CppSpaceBeforeASM: Byte read FCppSpaceBeforeASM write FCppSpaceBeforeASM;
+    property CppSpaceTabASMKeyword: Byte read FCppSpaceTabASMKeyword write FCppSpaceTabASMKeyword;
+    property CppUseIgnoreArea: Boolean read FCppUseIgnoreArea write FCppUseIgnoreArea;
   end;
 
   TCnCodeFormatterForm = class(TCnTranslateForm)
     pgcFormatter: TPageControl;
     tsPascal: TTabSheet;
+    tsCpp: TTabSheet;
     grpCommon: TGroupBox;
     lblKeyword: TLabel;
     cbbKeywordStyle: TComboBox;
@@ -193,11 +224,35 @@ type
     chkKeepUserLineBreak: TCheckBox;
     lblElseAfterEnd: TLabel;
     cbbElseAfterEndStyle: TComboBox;
+    grpCppCommon: TGroupBox;
+    lblCppTab: TLabel;
+    seCppTab: TCnSpinEdit;
+    lblCppSpaceBefore: TLabel;
+    seCppSpaceBefore: TCnSpinEdit;
+    lblCppSpaceAfter: TLabel;
+    seCppSpaceAfter: TCnSpinEdit;
+    lblCppBraceStyle: TLabel;
+    cbbCppBraceStyle: TComboBox;
+    lblCppElseStyle: TLabel;
+    cbbCppElseStyle: TComboBox;
+    chkCppAutoWrap: TCheckBox;
+    seCppWrapLine: TCnSpinEdit;
+    lblCppNewLine: TLabel;
+    seCppNewLine: TCnSpinEdit;
+    chkCppKeepUserLineBreak: TCheckBox;
+    grpCppAsm: TGroupBox;
+    lblCppAsmHeadIndent: TLabel;
+    seCppASMHeadIndent: TCnSpinEdit;
+    lblCppASMTab: TLabel;
+    seCppAsmTab: TCnSpinEdit;
+    chkCppIgnoreArea: TCheckBox;
     procedure chkAutoWrapClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnShortCutClick(Sender: TObject);
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
     procedure seWrapLineChange(Sender: TObject);
+    procedure chkCppAutoWrapClick(Sender: TObject);
+    procedure seCppWrapLineChange(Sender: TObject);
     procedure btnHelpClick(Sender: TObject);
   private
     FWizard: TCnCodeFormatterWizard;
@@ -255,6 +310,18 @@ const
   csDirectiveMode = 'DirectiveMode';
   csKeepUserLineBreak = 'KeepUserLineBreak';
   csUseIDESymbols = 'UseIDESymbols';
+  csCppTabSpaceCount = 'CppTabSpaceCount';
+  csCppSpaceBeforeBinaryOperator = 'CppSpaceBeforeBinaryOperator';
+  csCppSpaceAfterBinaryOperator = 'CppSpaceAfterBinaryOperator';
+  csCppWrapWidth = 'CppWrapWidth';
+  csCppWrapNewLineWidth = 'CppWrapNewLineWidth';
+  csCppWrapMode = 'CppWrapMode';
+  csCppBraceStyle = 'CppBraceStyle';
+  csCppElseStyle = 'CppElseStyle';
+  csCppSpaceBeforeASM = 'CppSpaceBeforeASM';
+  csCppSpaceTabASMKeyword = 'CppSpaceTabASMKeyword';
+  csCppKeepUserLineBreak = 'CppKeepUserLineBreak';
+  csCppUseIgnoreArea = 'CppUseIgnoreArea';
 
 { TCnCodeFormatterWizard }
 
@@ -368,6 +435,11 @@ begin
   begin
     FWizard := Self;
 
+    if IsCppSourceModule(CnOtaGetCurrentSourceFile) then
+      pgcFormatter.ActivePage := tsCpp
+    else
+      pgcFormatter.ActivePage := tsPascal;
+
     cbbKeywordStyle.ItemIndex := Ord(FKeywordStyle);
     cbbBeginStyle.ItemIndex := Ord(FBeginStyle);
     cbbElseAfterEndStyle.ItemIndex := Ord(FElseAfterEndStyle);
@@ -391,11 +463,24 @@ begin
     chkIgnoreArea.Checked := FUseIgnoreArea;
     chkKeepUserLineBreak.Checked := FKeepUserLineBreak;
 
+    seCppTab.Value := FCppTabSpaceCount;
+    seCppSpaceBefore.Value := FCppSpaceBeforeBinaryOperator;
+    seCppSpaceAfter.Value := FCppSpaceAfterBinaryOperator;
+    cbbCppBraceStyle.ItemIndex := Ord(FCppBraceStyle);
+    cbbCppElseStyle.ItemIndex := Ord(FCppElseStyle);
+    chkCppAutoWrap.Checked := (FCppCodeWrapMode <> cwmNone);
+    seCppWrapLine.Value := FCppWrapWidth;
+    seCppNewLine.Value := FCppWrapNewLineWidth;
+    chkCppKeepUserLineBreak.Checked := FCppKeepUserLineBreak;
+    seCppASMHeadIndent.Value := FCppSpaceBeforeASM;
+    seCppAsmTab.Value := FCppSpaceTabASMKeyword;
+    chkCppIgnoreArea.Checked := FCppUseIgnoreArea;
+
     if ShowModal = mrOK then
     begin
-      FKeywordStyle := TCnKeywordStyle(cbbKeywordStyle.ItemIndex);
-      FBeginStyle := TCnBeginStyle(cbbBeginStyle.ItemIndex);
-      FElseAfterEndStyle := TCnElseAfterEndStyle(cbbElseAfterEndStyle.ItemIndex);
+      FKeywordStyle := TCnPasKeywordStyle(cbbKeywordStyle.ItemIndex);
+      FBeginStyle := TCnPasBeginStyle(cbbBeginStyle.ItemIndex);
+      FElseAfterEndStyle := TCnPasElseAfterEndStyle(cbbElseAfterEndStyle.ItemIndex);
       FTabSpaceCount := seTab.Value;
       FWrapWidth := seWrapLine.Value;
       FWrapNewLineWidth := seNewLine.Value;
@@ -415,6 +500,22 @@ begin
       FUseIgnoreArea := chkIgnoreArea.Checked;
       FDirectiveMode := TCnCompDirectiveMode(cbbDirectiveMode.ItemIndex);
       FKeepUserLineBreak := chkKeepUserLineBreak.Checked;
+
+      FCppTabSpaceCount := seCppTab.Value;
+      FCppSpaceBeforeBinaryOperator := seCppSpaceBefore.Value;
+      FCppSpaceAfterBinaryOperator := seCppSpaceAfter.Value;
+      FCppBraceStyle := TCnCppBraceStyle(cbbCppBraceStyle.ItemIndex);
+      FCppElseStyle := TCnCppElseStyle(cbbCppElseStyle.ItemIndex);
+      FCppWrapWidth := seCppWrapLine.Value;
+      FCppWrapNewLineWidth := seCppNewLine.Value;
+      if chkCppAutoWrap.Checked then
+        FCppCodeWrapMode := cwmAdvanced
+      else
+        FCppCodeWrapMode := cwmNone;
+      FCppKeepUserLineBreak := chkCppKeepUserLineBreak.Checked;
+      FCppSpaceBeforeASM := seCppASMHeadIndent.Value;
+      FCppSpaceTabASMKeyword := seCppAsmTab.Value;
+      FCppUseIgnoreArea := chkCppIgnoreArea.Checked;
     end;
 
     Free;
@@ -437,8 +538,12 @@ begin
 
   FLibHandle := LoadLibrary(PChar(MakePath(WizOptions.DllPath) + DLLName));
   if FLibHandle <> 0 then
-    FGetProvider := TCnGetFormatterProvider(GetProcAddress(FLibHandle,
+  begin
+    FGetPasProvider := TCnGetPasFormatterProvider(GetProcAddress(FLibHandle,
       'GetCodeFormatterProvider'));
+    FGetCppProvider := TCnGetCppFormatterProvider(GetProcAddress(FLibHandle,
+      'GetCppFormatterProvider'));
+  end;
 end;
 
 destructor TCnCodeFormatterWizard.Destroy;
@@ -477,7 +582,35 @@ begin
   Result := 0;
 end;
 
-function TCnCodeFormatterWizard.GetErrorStr(Err: Integer): string;
+function TCnCodeFormatterWizard.GetCppErrorStr(Err: Integer): string;
+begin
+  case Err of
+    CN_ERRCODE_CPP_FORMAT:
+      Result := SCnCodeFormatterErrCppFormat;
+    CN_ERRCODE_CPP_NOT_SUPPORT:
+      Result := SCnCodeFormatterErrCppNotSupport;
+    CN_ERRCODE_CPP_UNCLOSED_STRING:
+      Result := SCnCodeFormatterErrCppUnclosedString;
+    CN_ERRCODE_CPP_UNCLOSED_COMMENT:
+      Result := SCnCodeFormatterErrCppUnclosedComment;
+    CN_ERRCODE_CPP_UNCLOSED_RAW_STRING:
+      Result := SCnCodeFormatterErrCppUnclosedRawString;
+    CN_ERRCODE_CPP_PAREN_MISMATCH:
+      Result := SCnCodeFormatterErrCppParenMismatch;
+    CN_ERRCODE_CPP_BRACKET_MISMATCH:
+      Result := SCnCodeFormatterErrCppBracketMismatch;
+    CN_ERRCODE_CPP_BRACE_MISMATCH:
+      Result := SCnCodeFormatterErrCppBraceMismatch;
+    CN_ERRCODE_CPP_TEMPLATE_MISMATCH:
+      Result := SCnCodeFormatterErrCppTemplateMismatch;
+    CN_ERRCODE_CPP_ASM_MISMATCH:
+      Result := SCnCodeFormatterErrCppAsmMismatch;
+  else
+    Result := SCnCodeFormatterErrUnknown;
+  end;
+end;
+
+function TCnCodeFormatterWizard.GetPasErrorStr(Err: Integer): string;
 begin
   case Err of
     CN_ERRCODE_PASCAL_IDENT_EXP:
@@ -561,7 +694,7 @@ begin
   Result := inherited GetSearchContent +
     '关键字,大小写,缩进,自动换行,前后,编译指令,注释,保留,独占,汇编,行首,宽度,' +
     'keyword,case,sensitive,indent,linebreak,compile,directive,comment,' +
-    'keep,asm,head,uses,width,';
+    'keep,asm,head,uses,width,cpp,c++,brace,binary,operator,';
 end;
 
 procedure TCnCodeFormatterWizard.LoadSettings(Ini: TCustomIniFile);
@@ -583,11 +716,11 @@ begin
     CnPascalCodeForVCLRule.WrapNewLineWidth);
   FWrapMode := TCnCodeWrapMode(Ini.ReadInteger('', csWrapMode,
     Ord(CnPascalCodeForVCLRule.CodeWrapMode)));
-  FBeginStyle := TCnBeginStyle(Ini.ReadInteger('', csBeginStyle,
+  FBeginStyle := TCnPasBeginStyle(Ini.ReadInteger('', csBeginStyle,
     Ord(CnPascalCodeForVCLRule.BeginStyle)));
-  FElseAfterEndStyle := TCnElseAfterEndStyle(Ini.ReadInteger('', csElseAfterEndStyle,
+  FElseAfterEndStyle := TCnPasElseAfterEndStyle(Ini.ReadInteger('', csElseAfterEndStyle,
     Ord(CnPascalCodeForVCLRule.ElseAfterEndStyle)));
-  FKeywordStyle := TCnKeywordStyle(Ini.ReadInteger('', csKeywordStyle,
+  FKeywordStyle := TCnPasKeywordStyle(Ini.ReadInteger('', csKeywordStyle,
     Ord(CnPascalCodeForVCLRule.KeywordStyle)));
   FDirectiveMode := TCnCompDirectiveMode(Ini.ReadInteger('', csDirectiveMode,
     Ord(CnPascalCodeForVCLRule.CompDirectiveMode)));
@@ -596,6 +729,30 @@ begin
 {$IFDEF CNWIZARDS_CNINPUTHELPER}
   FUseIDESymbols := Ini.ReadBool('', csUseIDESymbols, False);
 {$ENDIF}
+
+  FCppTabSpaceCount := Ini.ReadInteger('', csCppTabSpaceCount,
+    CnCppCodeForVCLRule.TabSpaceCount);
+  FCppSpaceBeforeBinaryOperator := Ini.ReadInteger('', csCppSpaceBeforeBinaryOperator,
+    CnCppCodeForVCLRule.SpaceBeforeBinaryOperator);
+  FCppSpaceAfterBinaryOperator := Ini.ReadInteger('', csCppSpaceAfterBinaryOperator,
+    CnCppCodeForVCLRule.SpaceAfterBinaryOperator);
+  FCppWrapWidth := Ini.ReadInteger('', csCppWrapWidth, CnCppCodeForVCLRule.WrapWidth);
+  FCppWrapNewLineWidth := Ini.ReadInteger('', csCppWrapNewLineWidth,
+    CnCppCodeForVCLRule.WrapNewLineWidth);
+  FCppCodeWrapMode := TCnCodeWrapMode(Ini.ReadInteger('', csCppWrapMode,
+    Ord(CnCppCodeForVCLRule.CodeWrapMode)));
+  FCppBraceStyle := TCnCppBraceStyle(Ini.ReadInteger('', csCppBraceStyle,
+    Ord(CnCppCodeForVCLRule.BraceStyle)));
+  FCppElseStyle := TCnCppElseStyle(Ini.ReadInteger('', csCppElseStyle,
+    Ord(CnCppCodeForVCLRule.ElseStyle)));
+  FCppSpaceBeforeASM := Ini.ReadInteger('', csCppSpaceBeforeASM,
+    CnCppCodeForVCLRule.SpaceBeforeASM);
+  FCppSpaceTabASMKeyword := Ini.ReadInteger('', csCppSpaceTabASMKeyword,
+    CnCppCodeForVCLRule.SpaceTabASMKeyword);
+  FCppKeepUserLineBreak := Ini.ReadBool('', csCppKeepUserLineBreak,
+    CnCppCodeForVCLRule.KeepUserLineBreak);
+  FCppUseIgnoreArea := Ini.ReadBool('', csCppUseIgnoreArea,
+    CnCppCodeForVCLRule.UseIgnoreArea);
 end;
 
 {$IFDEF CNWIZARDS_CNINPUTHELPER}
@@ -750,6 +907,221 @@ end;
 {$ENDIF}
 {$ENDIF}
 
+function TCnCodeFormatterWizard.PutCppFormatRules: Boolean;
+var
+  Intf: ICnCppFormatterIntf;
+begin
+  Result := False;
+  if FGetCppProvider = nil then
+    Exit;
+  Intf := FGetCppProvider();
+  if Intf = nil then
+    Exit;
+
+  Intf.SetCppFormatRule(FCppTabSpaceCount, Ord(FCppCodeWrapMode),
+    FCppWrapWidth, FCppWrapNewLineWidth, Ord(FCppBraceStyle), Ord(FCppElseStyle),
+    FCppSpaceBeforeBinaryOperator, FCppSpaceAfterBinaryOperator,
+    FCppSpaceBeforeASM, FCppSpaceTabASMKeyword,
+    LongBool(FCppKeepUserLineBreak), LongBool(FCppUseIgnoreArea));
+  Result := True;
+end;
+
+procedure TCnCodeFormatterWizard.FormatCpp;
+var
+  Formatter: ICnCppFormatterIntf;
+  View: TCnEditViewSourceInterface;
+  Src: string;
+  Res: PChar;
+  StartPos, EndPos, StartPosIn, EndPosIn: Integer;
+  HasSel: Boolean;
+  StartRec, EndRec: TOTACharPos;
+{$IFDEF DELPHI_OTA}
+  Block: IOTAEditBlock;
+  EP: TOTAEditPos;
+  BpBmLineMarks: array of Cardinal;
+  OutLineMarks: PDWORD;
+  I, Idx: Integer;
+{$ENDIF}
+  ErrCode, SourceLine, SourceCol, SourcePos: Integer;
+  CurrentToken: PAnsiChar;
+
+  procedure ShowCppFormatError;
+  begin
+    CurrentToken := nil;
+    ErrCode := Formatter.RetrieveCppLastError(SourceLine, SourceCol,
+      SourcePos, CurrentToken);
+{$IFDEF DELPHI_OTA}
+    if SourceLine > 0 then
+      CnOtaGotoEditPos(OTAEditPos(SourceCol, SourceLine));
+{$ENDIF}
+    ErrorDlg(Format(SCnCodeFormatterErrCppFmt, [SourceLine, SourceCol,
+      GetCppErrorStr(ErrCode), CurrentToken]));
+  end;
+
+begin
+  if not PutCppFormatRules then
+    Exit;
+  Formatter := FGetCppProvider();
+  if Formatter = nil then
+    Exit;
+  View := CnOtaGetTopMostEditView;
+  if View = nil then
+    Exit;
+
+{$IFDEF DELPHI_OTA}
+  Block := View.Block;
+  HasSel := (Block <> nil) and Block.IsValid;
+{$ENDIF}
+{$IFDEF LAZARUS}
+  HasSel := Length(View.Selection) > 0;
+{$ENDIF}
+{$IFDEF LAZARUS}
+  Src := CnOtaGetCurrentEditorSource(False);
+{$ENDIF}
+{$IFDEF DELPHI_OTA}
+{$IFDEF UNICODE}
+  Src := CnOtaGetCurrentEditorSourceW;
+{$ELSE}
+  {$IFDEF IDE_STRING_ANSI_UTF8}
+  Src := CnOtaGetCurrentEditorSource(False);
+  {$ELSE}
+  Src := CnOtaGetCurrentEditorSource(True);
+  {$ENDIF}
+{$ENDIF}
+{$ENDIF}
+
+{$IFDEF DELPHI_OTA}
+  CnWizGetBreakpointsByFile(CnOtaGetCurrentSourceFileName, FBreakpoints);
+  SaveBookMarksToObjectList(View, FBookmarks);
+{$ENDIF}
+
+  Screen.Cursor := crHourGlass;
+  try
+    if HasSel then
+    begin
+      if not CnOtaGetBlockOffsetForLineMode(StartRec, EndRec, View) then
+        Exit;
+      StartPos := CnOtaEditPosToLinePos(OTAEditPos(StartRec.CharIndex,
+        StartRec.Line), View);
+      EndPos := CnOtaEditPosToLinePos(OTAEditPos(EndRec.CharIndex,
+        EndRec.Line), View);
+
+{$IFDEF LAZARUS}
+      Res := Formatter.FormatCppBlockUtf8(PAnsiChar(Src), Length(Src),
+        StartPos, EndPos);
+{$ENDIF}
+{$IFDEF DELPHI_OTA}
+{$IFDEF UNICODE}
+      StartPosIn := Length(UTF8Decode(Copy(Utf8Encode(Src), 1, StartPos + 1))) - 1;
+      EndPosIn := Length(UTF8Decode(Copy(Utf8Encode(Src), 1, EndPos + 1))) - 1;
+      Res := Formatter.FormatCppBlockW(PChar(Src), Length(Src),
+        StartPosIn, EndPosIn);
+{$ELSE}
+  {$IFDEF IDE_STRING_ANSI_UTF8}
+      Res := Formatter.FormatCppBlockUtf8(PAnsiChar(Src), Length(Src),
+        StartPos, EndPos);
+  {$ELSE}
+      Res := Formatter.FormatCppBlock(PAnsiChar(Src), Length(Src),
+        StartPos, EndPos);
+  {$ENDIF}
+{$ENDIF}
+{$ENDIF}
+
+      if Res = nil then
+      begin
+        ShowCppFormatError;
+        Exit;
+      end;
+{$IFDEF DELPHI_OTA}
+  {$IFDEF IDE_STRING_ANSI_UTF8}
+      CnOtaReplaceCurrentSelectionUtf8(Res, True, True, True);
+  {$ELSE}
+      CnOtaReplaceCurrentSelection(Res, True, True, True);
+  {$ENDIF}
+{$ENDIF}
+{$IFDEF LAZARUS}
+      View.ReplaceLines(View.BlockBegin.Y, View.BlockEnd.Y, Res, True);
+{$ENDIF}
+    end
+    else
+    begin
+{$IFDEF DELPHI_OTA}
+      EP := View.CursorPos;
+      SetLength(BpBmLineMarks, 1 + FBreakpoints.Count + FBookmarks.Count + 1);
+      BpBmLineMarks[0] := EP.Line;
+      Idx := 1;
+      for I := 0 to FBreakpoints.Count - 1 do
+        BpBmLineMarks[I + Idx] := DWORD(TCnBreakpointDescriptor(FBreakpoints[I]).LineNumber);
+      Inc(Idx, FBreakpoints.Count);
+      for I := 0 to FBookmarks.Count - 1 do
+        BpBmLineMarks[I + Idx] := DWORD(TCnBookmarkObject(FBookmarks[I]).Line);
+      BpBmLineMarks[Length(BpBmLineMarks) - 1] := 0;
+      Formatter.SetInputLineMarks(@(BpBmLineMarks[0]));
+{$ENDIF}
+{$IFDEF LAZARUS}
+      Res := Formatter.FormatOneCppUnitUtf8(PAnsiChar(Src), Length(Src));
+{$ENDIF}
+{$IFDEF DELPHI_OTA}
+{$IFDEF UNICODE}
+      Res := Formatter.FormatOneCppUnitW(PChar(Src), Length(Src));
+{$ELSE}
+  {$IFDEF IDE_STRING_ANSI_UTF8}
+      Res := Formatter.FormatOneCppUnitUtf8(PAnsiChar(Src), Length(Src));
+  {$ELSE}
+      Res := Formatter.FormatOneCppUnit(PAnsiChar(Src), Length(Src));
+  {$ENDIF}
+{$ENDIF}
+{$ENDIF}
+
+      if Res = nil then
+      begin
+        ShowCppFormatError;
+        Exit;
+      end;
+      if TrimRight(Src) = TrimRight(string(Res)) then
+        Exit;
+{$IFDEF LAZARUS}
+      CnOtaSetCurrentEditorSource(string(Res));
+{$ENDIF}
+{$IFDEF DELPHI_OTA}
+{$IFDEF UNICODE}
+      CnOtaSetCurrentEditorSourceW(string(Res));
+{$ELSE}
+  {$IFDEF IDE_STRING_ANSI_UTF8}
+      CnOtaSetCurrentEditorSourceUtf8(string(Res));
+  {$ELSE}
+      CnOtaSetCurrentEditorSource(string(Res));
+  {$ENDIF}
+{$ENDIF}
+{$ENDIF}
+{$IFDEF DELPHI_OTA}
+      OutLineMarks := Formatter.RetrieveOutputLinkMarks;
+      if OutLineMarks <> nil then
+      begin
+        EP.Line := OutLineMarks^;
+        View.SetCursorPos(EP);
+        Inc(OutLineMarks);
+        if FBreakpoints.Count > 0 then
+        begin
+          RestoreBreakpoints(OutLineMarks, FBreakpoints.Count);
+          Inc(OutLineMarks, FBreakpoints.Count);
+        end;
+        if FBookmarks.Count > 0 then
+        begin
+          RestoreBookmarks(View, OutLineMarks);
+          Inc(OutLineMarks, FBookmarks.Count);
+        end;
+        View.MoveViewToCursor;
+        View.Paint;
+      end;
+{$ENDIF}
+    end;
+  finally
+    Screen.Cursor := crDefault;
+    Formatter := nil;
+  end;
+end;
+
 function TCnCodeFormatterWizard.PutPascalFormatRules: Boolean;
 var
   Intf: ICnPascalFormatterIntf;
@@ -771,9 +1143,9 @@ var
   AKeepUserLineBreak: LongBool;
 begin
   Result := False;
-  if FGetProvider = nil then
+  if FGetPasProvider = nil then
     Exit;
-  Intf := FGetProvider();
+  Intf := FGetPasProvider();
 
   if Intf = nil then
     Exit;
@@ -870,6 +1242,19 @@ begin
 {$IFDEF CNWIZARDS_CNINPUTHELPER}
   Ini.WriteBool('', csUseIDESymbols, FUseIDESymbols);
 {$ENDIF}
+
+  Ini.WriteInteger('', csCppTabSpaceCount, FCppTabSpaceCount);
+  Ini.WriteInteger('', csCppSpaceBeforeBinaryOperator, FCppSpaceBeforeBinaryOperator);
+  Ini.WriteInteger('', csCppSpaceAfterBinaryOperator, FCppSpaceAfterBinaryOperator);
+  Ini.WriteInteger('', csCppWrapWidth, FCppWrapWidth);
+  Ini.WriteInteger('', csCppWrapNewLineWidth, FCppWrapNewLineWidth);
+  Ini.WriteInteger('', csCppWrapMode, Ord(FCppCodeWrapMode));
+  Ini.WriteInteger('', csCppBraceStyle, Ord(FCppBraceStyle));
+  Ini.WriteInteger('', csCppElseStyle, Ord(FCppElseStyle));
+  Ini.WriteInteger('', csCppSpaceBeforeASM, FCppSpaceBeforeASM);
+  Ini.WriteInteger('', csCppSpaceTabASMKeyword, FCppSpaceTabASMKeyword);
+  Ini.WriteBool('', csCppKeepUserLineBreak, FCppKeepUserLineBreak);
+  Ini.WriteBool('', csCppUseIgnoreArea, FCppUseIgnoreArea);
 end;
 
 procedure TCnCodeFormatterWizard.SubActionExecute(Index: Integer);
@@ -959,9 +1344,15 @@ begin
     Config
   else if Index = FIdFormatCurrent then
   begin
+    if IsCppSourceModule(CnOtaGetCurrentSourceFile) then
+    begin
+      FormatCpp;
+      Exit;
+    end;
+
     PutPascalFormatRules;
 
-    Formatter := FGetProvider();
+    Formatter := FGetPasProvider();
     if Formatter = nil then
       Exit;
     View := CnOtaGetTopMostEditView;
@@ -986,7 +1377,9 @@ begin
       Formatter.SetPreIdentifierNames(PLPSTR(FPreNamesArray));
       SetLength(FPreNamesArray, 0);
       FPreNamesList.Clear;
-    end;
+    end
+    else
+      Formatter.SetPreIdentifierNames(nil); // 无内容时要清除
 {$ENDIF}
     HasSel := (View.Block <> nil) and View.Block.IsValid;
 {$ENDIF}
@@ -1191,7 +1584,7 @@ begin
 
           ErrorDlg(Format(SCnCodeFormatterErrPascalFmt, [SourceLine,
             ConvertToVisibleCol(ErrLine, SourceCol),
-            GetErrorStr(ErrCode), CurrentToken]) + SCnCodeFormatterErrMaybeComment);
+            GetPasErrorStr(ErrCode), CurrentToken]) + SCnCodeFormatterErrMaybeComment);
 {$ENDIF}
 {$IFDEF LAZARUS}
           P := View.CursorTextXY;
@@ -1200,7 +1593,7 @@ begin
           View.CursorTextXY := P;
 
           ErrorDlg(Format(SCnCodeFormatterErrPascalFmt, [SourceLine, SourceCol,
-            GetErrorStr(ErrCode), CurrentToken]) + SCnCodeFormatterErrMaybeComment);
+            GetPasErrorStr(ErrCode), CurrentToken]) + SCnCodeFormatterErrMaybeComment);
 {$ENDIF}
         end;
       finally
@@ -1416,7 +1809,7 @@ begin
               CnOtaGotoEditPos(ErrPos);
               ErrorDlg(Format(SCnCodeFormatterErrPascalFmt, [SourceLine,
                 ConvertToVisibleCol(ErrLine, SourceCol),
-                GetErrorStr(ErrCode), CurrentToken]) + SCnCodeFormatterErrMaybeComment);
+                GetPasErrorStr(ErrCode), CurrentToken]) + SCnCodeFormatterErrMaybeComment);
 {$ENDIF}
 
 {$IFDEF LAZARUS}
@@ -1426,7 +1819,7 @@ begin
               View.CursorTextXY := P;
 
               ErrorDlg(Format(SCnCodeFormatterErrPascalFmt, [SourceLine, SourceCol,
-                GetErrorStr(ErrCode), CurrentToken]) + SCnCodeFormatterErrMaybeComment);
+                GetPasErrorStr(ErrCode), CurrentToken]) + SCnCodeFormatterErrMaybeComment);
 {$ENDIF}
             end;
           end;
@@ -1446,7 +1839,8 @@ begin
   if Index = FIdFormatCurrent then
   begin
     S := CnOtaGetCurrentSourceFile;
-    SubActions[Index].Enabled := IsDprOrPas(S) or IsInc(S) or IsDpk(S);
+    SubActions[Index].Enabled := IsDprOrPas(S) or IsInc(S) or IsDpk(S) or
+      IsCppSourceModule(S);
   end
   else
     SubActions[Index].Enabled := True;
@@ -1461,6 +1855,7 @@ end;
 procedure TCnCodeFormatterForm.FormShow(Sender: TObject);
 begin
   chkAutoWrapClick(chkAutoWrap);
+  chkCppAutoWrapClick(chkCppAutoWrap);
 end;
 
 function TCnCodeFormatterForm.GetHelpTopic: string;
@@ -1476,7 +1871,9 @@ end;
 
 procedure TCnCodeFormatterForm.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
-  if (ModalResult = mrOK) and (seNewLine.Value < seWrapLine.Value) then
+  if (ModalResult = mrOK) and
+    ((seNewLine.Value < seWrapLine.Value) or
+     (seCppNewLine.Value < seCppWrapLine.Value)) then
   begin
     ErrorDlg(SCnCodeFormatterWizardErrLineWidth);
     CanClose := False;
@@ -1486,6 +1883,17 @@ end;
 procedure TCnCodeFormatterForm.seWrapLineChange(Sender: TObject);
 begin
   seNewLine.MinValue := seWrapLine.Value;
+end;
+
+procedure TCnCodeFormatterForm.chkCppAutoWrapClick(Sender: TObject);
+begin
+  seCppWrapLine.Enabled := chkCppAutoWrap.Checked;
+  seCppNewLine.Enabled := chkCppAutoWrap.Checked;
+end;
+
+procedure TCnCodeFormatterForm.seCppWrapLineChange(Sender: TObject);
+begin
+  seCppNewLine.MinValue := seCppWrapLine.Value;
 end;
 
 procedure TCnCodeFormatterForm.btnHelpClick(Sender: TObject);
@@ -1641,9 +2049,7 @@ begin
 end;
 
 initialization
-{$IFNDEF BCB5OR6}  // 目前只支持 Delphi/Lazarus。
   RegisterCnWizard(TCnCodeFormatterWizard);
-{$ENDIF}
 
 {$ENDIF CNWIZARDS_CNCODEFORMATTERWIZARD}
 end.

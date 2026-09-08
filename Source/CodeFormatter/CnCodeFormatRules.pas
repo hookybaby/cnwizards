@@ -26,8 +26,8 @@ unit CnCodeFormatRules;
 * 单元作者：CnPack开发组
 * 备    注：该单元实现代码格式化规则
 * 开发平台：Win2003 + Delphi 5.0
-* 兼容测试：not test yet
-* 本 地 化：not test hell
+* 兼容测试：无
+* 本 地 化：无
 * 修改记录：2003.12.16 V0.1
 *               建立。目前包括 缩进空格数、操作符前后空格数、关键字大小写 的设置。
                 代码风格未实现。
@@ -42,15 +42,11 @@ uses
   SysUtils, TypInfo;
 
 type
-  TCnCodeStyle = (fsNone);
+  TCnPasKeywordStyle = (ksLowerCaseKeyword, ksUpperCaseKeyword, ksPascalKeyword, ksNoChange);
 
-  TCnCodeStyles = set of TCnCodeStyle;
+  TCnPasBeginStyle = (bsNextLine, bsSameLine);
 
-  TCnKeywordStyle = (ksLowerCaseKeyword, ksUpperCaseKeyword, ksPascalKeyword, ksNoChange);
-
-  TCnBeginStyle = (bsNextLine, bsSameLine);
-
-  TCnElseAfterEndStyle = (eaeNextLine, eaeSameLine);
+  TCnPasElseAfterEndStyle = (eaeNextLine, eaeSameLine);
 
   TCnCodeWrapMode = (cwmNone, cwmSimple, cwmAdvanced);
   {* 代码换行的设置，不自动换行、简单的超过就换行，高级的超过多了才从少的地方换行}
@@ -59,14 +55,32 @@ type
 
   TCnCompDirectiveMode = (cdmAsComment, cdmOnlyFirst, cdmNone); // None 表示扔给外面处理
 
+  TCnCppBraceStyle = (cbsNextLine, cbsSameLine);
+
+  TCnCppElseStyle = (cesNextLine, cesSameLine); // else 与右大括号同行或下一行
+
+  TCnCppCodeFormatRule = record
+    TabSpaceCount: Byte;
+    CodeWrapMode: TCnCodeWrapMode;
+    WrapWidth: Integer;
+    WrapNewLineWidth: Integer;
+    KeepUserLineBreak: Boolean;
+    BraceStyle: TCnCppBraceStyle;
+    ElseStyle: TCnCppElseStyle;
+    SpaceBeforeBinaryOperator: Byte;
+    SpaceAfterBinaryOperator: Byte;
+    SpaceBeforeASM: Byte;
+    SpaceTabASMKeyword: Byte;
+    UseIgnoreArea: Boolean;
+    FormatAsm: Boolean;
+  end;
+
   TCnPascalCodeFormatRule = record
     ContinueAfterError: Boolean;
-    CodeStyle: TCnCodeStyles;
-
     CompDirectiveMode: TCnCompDirectiveMode;
-    KeywordStyle: TCnKeywordStyle;
-    BeginStyle: TCnBeginStyle;
-    ElseAfterEndStyle: TCnElseAfterEndStyle;
+    KeywordStyle: TCnPasKeywordStyle;
+    BeginStyle: TCnPasBeginStyle;
+    ElseAfterEndStyle: TCnPasElseAfterEndStyle;
     CodeWrapMode: TCnCodeWrapMode;
     TypeIDStyle: TCnTypeIDStyle;    // 此项无法处理标识符内的分词，意义不大，暂不对外开放
     TabSpaceCount: Byte;
@@ -84,11 +98,26 @@ type
   end;
 
 const
+  CnCppCodeForVCLRule: TCnCppCodeFormatRule =
+  (
+    TabSpaceCount: 4;
+    CodeWrapMode: cwmSimple;
+    WrapWidth: 100;
+    WrapNewLineWidth: 120;
+    KeepUserLineBreak: False;
+    BraceStyle: cbsNextLine;
+    ElseStyle: cesNextLine;
+    SpaceBeforeBinaryOperator: 1;
+    SpaceAfterBinaryOperator: 1;
+    SpaceBeforeASM: 8;
+    SpaceTabASMKeyword: 8;
+    UseIgnoreArea: True;
+    FormatAsm: False;
+  );
+
   CnPascalCodeForVCLRule: TCnPascalCodeFormatRule =
   (
     ContinueAfterError: False;
-    CodeStyle: [];
-
     CompDirectiveMode: cdmAsComment;
     KeywordStyle: ksLowerCaseKeyword;
     BeginStyle: bsNextLine;
@@ -110,9 +139,11 @@ const
   );
 
 function PascalCodeRuleToString(var Rule: TCnPascalCodeFormatRule): string;
+function CppCodeRuleToString(var Rule: TCnCppCodeFormatRule): string;
 
 var
   CnPascalCodeForRule: TCnPascalCodeFormatRule;
+  CnCppCodeForRule: TCnCppCodeFormatRule;
 
 implementation
 
@@ -134,9 +165,9 @@ begin
   S := S + '  ContinueAfterError: ' + MyBooleanToStr(Rule.ContinueAfterError) + sLineBreak;
   S := S + '  CodeStyle: ' + '[Set of TCnCodeStyle]' + sLineBreak;  // Set 类型暂时简化处理
   S := S + '  CompDirectiveMode: ' + GetEnumName(TypeInfo(TCnCompDirectiveMode), Ord(Rule.CompDirectiveMode)) + sLineBreak;
-  S := S + '  KeywordStyle: ' + GetEnumName(TypeInfo(TCnKeywordStyle), Ord(Rule.KeywordStyle)) + sLineBreak;
-  S := S + '  BeginStyle: ' + GetEnumName(TypeInfo(TCnBeginStyle), Ord(Rule.BeginStyle)) + sLineBreak;
-  S := S + '  ElseAfterEndStyle: ' + GetEnumName(TypeInfo(TCnElseAfterEndStyle), Ord(Rule.ElseAfterEndStyle)) + sLineBreak;
+  S := S + '  KeywordStyle: ' + GetEnumName(TypeInfo(TCnPasKeywordStyle), Ord(Rule.KeywordStyle)) + sLineBreak;
+  S := S + '  BeginStyle: ' + GetEnumName(TypeInfo(TCnPasBeginStyle), Ord(Rule.BeginStyle)) + sLineBreak;
+  S := S + '  ElseAfterEndStyle: ' + GetEnumName(TypeInfo(TCnPasElseAfterEndStyle), Ord(Rule.ElseAfterEndStyle)) + sLineBreak;
   S := S + '  CodeWrapMode: ' + GetEnumName(TypeInfo(TCnCodeWrapMode), Ord(Rule.CodeWrapMode)) + sLineBreak;
   S := S + '  TypeIDStyle: ' + GetEnumName(TypeInfo(TCnTypeIDStyle), Ord(Rule.TypeIDStyle)) + sLineBreak;
   S := S + '  TabSpaceCount: ' + IntToStr(Rule.TabSpaceCount) + sLineBreak;
@@ -154,8 +185,40 @@ begin
   Result := S;
 end;
 
+function CppCodeRuleToString(var Rule: TCnCppCodeFormatRule): string;
+const
+  sLineBreak = #13#10;
+var
+  S: string;
+
+  function MyBooleanToStr(Value: Boolean): string;
+  begin
+    if Value then
+      Result := 'True'
+    else
+      Result := 'False';
+  end;
+begin
+  S := 'TCnCppCodeFormatRule:' + sLineBreak;
+  S := S + '  TabSpaceCount: ' + IntToStr(Rule.TabSpaceCount) + sLineBreak;
+  S := S + '  CodeWrapMode: ' + GetEnumName(TypeInfo(TCnCodeWrapMode), Ord(Rule.CodeWrapMode)) + sLineBreak;
+  S := S + '  WrapWidth: ' + IntToStr(Rule.WrapWidth) + sLineBreak;
+  S := S + '  WrapNewLineWidth: ' + IntToStr(Rule.WrapNewLineWidth) + sLineBreak;
+  S := S + '  KeepUserLineBreak: ' + MyBooleanToStr(Rule.KeepUserLineBreak) + sLineBreak;
+  S := S + '  BraceStyle: ' + GetEnumName(TypeInfo(TCnCppBraceStyle), Ord(Rule.BraceStyle)) + sLineBreak;
+  S := S + '  ElseStyle: ' + GetEnumName(TypeInfo(TCnCppElseStyle), Ord(Rule.ElseStyle)) + sLineBreak;
+  S := S + '  SpaceBeforeBinaryOperator: ' + IntToStr(Rule.SpaceBeforeBinaryOperator) + sLineBreak;
+  S := S + '  SpaceAfterBinaryOperator: ' + IntToStr(Rule.SpaceAfterBinaryOperator) + sLineBreak;
+  S := S + '  SpaceBeforeASM: ' + IntToStr(Rule.SpaceBeforeASM) + sLineBreak;
+  S := S + '  SpaceTabASMKeyword: ' + IntToStr(Rule.SpaceTabASMKeyword) + sLineBreak;
+  S := S + '  UseIgnoreArea: ' + MyBooleanToStr(Rule.UseIgnoreArea) + sLineBreak;
+  S := S + '  FormatAsm: ' + MyBooleanToStr(Rule.FormatAsm);
+  Result := S;
+end;
+
 initialization
   // Default Setting
   CnPascalCodeForRule := CnPascalCodeForVCLRule;
+  CnCppCodeForRule := CnCppCodeForVCLRule;
 
 end.

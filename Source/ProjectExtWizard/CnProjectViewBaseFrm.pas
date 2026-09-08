@@ -794,14 +794,21 @@ var
 
   function CheckWidthValid: Boolean;
   var
-    I: Integer;
+    I, M: Integer;
+
   begin
     Result := False;
+    M := 0;
     for I := 0 to lvList.Columns.Count - 1 do
     begin
-      if lvList.Columns[I].Width > Screen.Width then // 如果列宽超过了屏幕宽度，说明出问题了
+      if lvList.Columns[I].Width < 20 then           // 记下小列数
+        Inc(M);
+      if lvList.Columns[I].Width > Screen.Width then // 如果某列宽超过了屏幕宽度，说明出问题了
         Exit;
     end;
+    if M >= lvList.Columns.Count then      // 如果所有列都很小，也说明出问题了
+      Exit;
+
     Result := True;
   end;
 
@@ -836,13 +843,14 @@ begin
 {$IFDEF DELPHI_OTA}
     if CnIsGEDelphi11Dot3 then
     begin
-      S := GetListViewWidthString2(lvList, GetFactorFromSizeEnlarge(Enlarge)); // 获取正确的宽度值
+      S := GetListViewWidthString2(lvList, GetFactorFromSizeEnlarge(Enlarge)); // 获取正确的原始宽度值
 {$IFDEF DEBUG}
       CnDebugger.LogFmt('TCnProjectViewBaseForm.SaveSettings To Write ListView Width2 %s', [S]);
 {$ENDIF}
       if {$IFNDEF DELPHI120_ATHENS_UP} FColumnWidthManuallyChanged and {$ENDIF}
-        (S <> FListViewWidthOldStr) then // 有宽度 Bug 存在的情况下，只手工更改过且变化了才保存
+        (S <> FListViewWidthOldStr) then
         WriteString(aSection, csListViewWidth, S);
+        // 有宽度不兼容问题存在的情况下，只手工更改过且宽度变化了才保存
     end
     else
     begin
@@ -852,7 +860,7 @@ begin
 {$ENDIF}
       if CheckWidthValid then
       begin
-        if S <> FListViewWidthOldStr then // 只变化了，且宽度合适，才保存
+        if S <> FListViewWidthOldStr then // 没变化且宽度合适，才保存
           WriteString(aSection, csListViewWidth, S);
       end
       else // 宽度不合适，清空设置恢复原始宽度

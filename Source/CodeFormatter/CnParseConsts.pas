@@ -42,35 +42,9 @@ uses
   CnFormatterIntf;
 
 const
-  SIdentifierExpected: PAnsiChar = 'Identifier expected';
-  SStringExpected: PAnsiChar = 'String expected';
-  SNumberExpected: PAnsiChar = 'Number expected';
-  SCharExpected: PAnsiChar = '''''%d'''' expected';
-  SSymbolExpected: PAnsiChar = '%s expected, but "%s" found';
-  SParseError: PAnsiChar = '%s on line %d:%d';
-  SInvalidBinary: PAnsiChar = 'Invalid binary value';
-  SInvalidString: PAnsiChar = 'Invalid string constant';
-  SInvalidBookmark: PAnsiChar = 'Invalid Bookmark';
-  SLineTooLong: PAnsiChar = 'Line too long';
-  SEndOfCommentExpected: PAnsiChar = 'Comment end ''}'' or ''*)'' expected';
-  SNotSurpport: PAnsiChar = 'Not Surport %s now';
-
-  SErrorDirective: PAnsiChar = 'Error Directive';
-  SMethodHeadingExpected: PAnsiChar = 'Method head expected';
-  SStructTypeExpected: PAnsiChar = 'Struct type expected';
-  STypedConstantExpected: PAnsiChar = 'Typed constant expected';
-  SEqualColonExpected: PAnsiChar = ' = or : expected';
-  SDeclSectionExpected: PAnsiChar = 'Declare section expected';
-  SProcFuncExpected: PAnsiChar = 'Procedure or function expected';
-  SUnknownGoal: PAnsiChar = 'Unknown file type';
-  SErrorInterface: PAnsiChar = 'Interface part error';
-  SErrorStatement: PAnsiChar = 'Statement part error';
-
-  SUnknownErrorStr: PAnsiChar = 'Unknown Error String';
+  SParseError: PAnsiChar = '%s on Line %d:%d';
 
 type
-  PPAnsiChar = ^PAnsiChar;
-
   TCnPascalErrorRec = packed record
     ErrorCode: Integer;
     ErrorMessage: string;
@@ -79,6 +53,69 @@ type
     SourcePos: Integer;  // 出错时当前总偏移
     CurrentToken: string;
   end;
+
+  TCnCppErrorRec = packed record
+    ErrorCode: Integer;
+    SourceLine: Integer;
+    SourceCol: Integer;
+    SourcePos: Integer;
+    CurrentToken: string;
+  end;
+
+var
+  // 供全局设置错误信息
+  PascalErrorRec: TCnPascalErrorRec = (
+    ErrorCode: 0;
+    ErrorMessage: '';
+    SourceLine: 0;
+    SourceCol: 0;
+    SourcePos: 0;
+    CurrentToken: '';
+  );
+
+  CppErrorRec: TCnCppErrorRec = (
+    ErrorCode: 0;
+    SourceLine: 0;
+    SourceCol: 0;
+    SourcePos: 0;
+    CurrentToken: '';
+  );
+
+procedure ClearPascalError;
+
+procedure ClearCppError;
+
+function RetrieveFormatErrorString(const Ident: Integer): PAnsiChar;
+
+implementation
+
+const
+  SIdentifierExpected: PAnsiChar = 'Identifier Expected';
+  SStringExpected: PAnsiChar = 'String Expected';
+  SNumberExpected: PAnsiChar = 'Number Expected';
+  SCharExpected: PAnsiChar = '''''%d'''' Expected';
+  SSymbolExpected: PAnsiChar = '%s Expected, but "%s" Found';
+  SInvalidBinary: PAnsiChar = 'Invalid Binary Value';
+  SInvalidString: PAnsiChar = 'Invalid string Constant';
+  SInvalidBookmark: PAnsiChar = 'Invalid Bookmark';
+  SLineTooLong: PAnsiChar = 'Line Too Long';
+  SEndOfCommentExpected: PAnsiChar = 'Comment End ''}'' or ''*)'' Expected';
+  SNotSurpport: PAnsiChar = 'Not Surport %s Now';
+  SErrorDirective: PAnsiChar = 'Error Directive';
+  SMethodHeadingExpected: PAnsiChar = 'Method Head Expected';
+  SStructTypeExpected: PAnsiChar = 'Struct Type Expected';
+  STypedConstantExpected: PAnsiChar = 'Typed Constant Expected';
+  SEqualColonExpected: PAnsiChar = ' = or : Expected';
+  SDeclSectionExpected: PAnsiChar = 'Declare Section Expected';
+  SProcFuncExpected: PAnsiChar = 'Procedure or Function Expected';
+  SUnknownGoal: PAnsiChar = 'Unknown File Type';
+  SErrorInterface: PAnsiChar = 'Interface Part Error';
+  SErrorStatement: PAnsiChar = 'Statement Part Error';
+
+  SUnknownErrorStr: PAnsiChar = 'Unknown Error String';
+
+type
+  PPAnsiChar = ^PAnsiChar;
 
 var
   ErrorStrings: array[CN_ERRCODE_START..CN_ERRCODE_END] of PPAnsiChar =
@@ -91,28 +128,24 @@ var
       @SProcFuncExpected, @SUnknownGoal, @SErrorInterface, @SErrorStatement
     );
 
-  // 供全局设置错误信息
-  PascalErrorRec: TCnPascalErrorRec = (
-    ErrorCode: 0;
-    ErrorMessage: '';
-    SourceLine: 0;
-    SourceCol: 0;
-    SourcePos: 0;
-    CurrentToken: '';
-  );
-
-procedure ClearPascalError;
-
-function RetrieveFormatErrorString(const Ident: Integer): PAnsiChar;
-
-implementation
-
 procedure ClearPascalError;
 begin
   with PascalErrorRec do
   begin
     ErrorCode := 0;
     ErrorMessage := '';
+    SourceLine := 0;
+    SourceCol := 0;
+    SourcePos := 0;
+    CurrentToken := '';
+  end;
+end;
+
+procedure ClearCppError;
+begin
+  with CppErrorRec do
+  begin
+    ErrorCode := CnFormatterIntf.CN_ERRCODE_CPP_OK;
     SourceLine := 0;
     SourceCol := 0;
     SourcePos := 0;

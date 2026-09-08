@@ -52,16 +52,16 @@ inherited CnCodeFormatterForm: TCnCodeFormatterForm
         object lblSpaceBefore: TLabel
           Left = 16
           Top = 136
-          Width = 115
+          Width = 148
           Height = 13
-          Caption = 'Space Before Operator:'
+          Caption = 'Space Before Binary Operator:'
         end
         object lblSpaceAfter: TLabel
           Left = 16
           Top = 164
-          Width = 108
+          Width = 141
           Height = 13
-          Caption = 'Space After Operator:'
+          Caption = 'Space After Binary Operator:'
         end
         object lblNewLine: TLabel
           Left = 232
@@ -268,6 +268,205 @@ inherited CnCodeFormatterForm: TCnCodeFormatterForm
         Width = 281
         Height = 17
         Caption = 'Do NOT Format Contents between {(*} and {*)}'
+        TabOrder = 2
+      end
+    end
+    object tsCpp: TTabSheet
+      Caption = 'C/C++'
+      object grpCppCommon: TGroupBox
+        Left = 8
+        Top = 8
+        Width = 410
+        Height = 241
+        Anchors = [akLeft, akTop, akRight]
+        Caption = 'Common Settings'
+        TabOrder = 0
+        object lblCppTab: TLabel
+          Left = 16
+          Top = 80
+          Width = 57
+          Height = 13
+          Caption = 'Tab Indent:'
+        end
+        object lblCppSpaceBefore: TLabel
+          Left = 16
+          Top = 108
+          Width = 148
+          Height = 13
+          Caption = 'Space Before Binary Operator:'
+        end
+        object lblCppSpaceAfter: TLabel
+          Left = 16
+          Top = 136
+          Width = 141
+          Height = 13
+          Caption = 'Space After Binary Operator:'
+        end
+        object lblCppBraceStyle: TLabel
+          Left = 16
+          Top = 24
+          Width = 58
+          Height = 13
+          Caption = 'Brace Style:'
+        end
+        object lblCppElseStyle: TLabel
+          Left = 16
+          Top = 52
+          Width = 50
+          Height = 13
+          Caption = 'Else Style:'
+        end
+        object lblCppNewLine: TLabel
+          Left = 232
+          Top = 170
+          Width = 68
+          Height = 13
+          Caption = 'when Exceed:'
+        end
+        object chkCppAutoWrap: TCheckBox
+          Left = 16
+          Top = 168
+          Width = 121
+          Height = 17
+          Caption = 'Auto Wrap Line at:'
+          TabOrder = 5
+          OnClick = chkCppAutoWrapClick
+        end
+        object chkCppKeepUserLineBreak: TCheckBox
+          Left = 16
+          Top = 200
+          Width = 377
+          Height = 17
+          Caption = 'Keep User Line Break in Statement.'
+          TabOrder = 8
+        end
+        object seCppTab: TCnSpinEdit
+          Left = 296
+          Top = 78
+          Width = 97
+          Height = 22
+          MaxValue = 32
+          MinValue = 0
+          TabOrder = 0
+          Value = 2
+        end
+        object seCppSpaceBefore: TCnSpinEdit
+          Left = 296
+          Top = 106
+          Width = 97
+          Height = 22
+          MaxValue = 32
+          MinValue = 0
+          TabOrder = 1
+          Value = 1
+        end
+        object seCppSpaceAfter: TCnSpinEdit
+          Left = 296
+          Top = 134
+          Width = 97
+          Height = 22
+          MaxValue = 32
+          MinValue = 0
+          TabOrder = 2
+          Value = 1
+        end
+        object cbbCppBraceStyle: TComboBox
+          Left = 136
+          Top = 22
+          Width = 257
+          Height = 21
+          Style = csDropDownList
+          ItemHeight = 13
+          TabOrder = 3
+          Items.Strings = (
+            'Next Line'
+            'This Line')
+        end
+        object cbbCppElseStyle: TComboBox
+          Left = 136
+          Top = 50
+          Width = 257
+          Height = 21
+          Style = csDropDownList
+          ItemHeight = 13
+          TabOrder = 4
+          Items.Strings = (
+            'Next Line'
+            'This Line')
+        end
+        object seCppWrapLine: TCnSpinEdit
+          Left = 144
+          Top = 166
+          Width = 81
+          Height = 22
+          MaxValue = 256
+          MinValue = 16
+          TabOrder = 6
+          Value = 100
+          OnChange = seCppWrapLineChange
+        end
+        object seCppNewLine: TCnSpinEdit
+          Left = 312
+          Top = 166
+          Width = 81
+          Height = 22
+          MaxValue = 256
+          MinValue = 16
+          TabOrder = 7
+          Value = 120
+        end
+      end
+      object grpCppAsm: TGroupBox
+        Left = 8
+        Top = 260
+        Width = 410
+        Height = 83
+        Anchors = [akLeft, akTop, akRight]
+        Caption = 'ASM Settings'
+        TabOrder = 1
+        object lblCppAsmHeadIndent: TLabel
+          Left = 16
+          Top = 24
+          Width = 86
+          Height = 13
+          Caption = 'Line Head Indent:'
+        end
+        object lblCppASMTab: TLabel
+          Left = 16
+          Top = 48
+          Width = 53
+          Height = 13
+          Caption = 'Tab Width:'
+        end
+        object seCppASMHeadIndent: TCnSpinEdit
+          Left = 296
+          Top = 19
+          Width = 97
+          Height = 22
+          MaxValue = 32
+          MinValue = 1
+          TabOrder = 0
+          Value = 8
+        end
+        object seCppAsmTab: TCnSpinEdit
+          Left = 296
+          Top = 47
+          Width = 97
+          Height = 22
+          MaxValue = 32
+          MinValue = 1
+          TabOrder = 1
+          Value = 8
+        end
+      end
+      object chkCppIgnoreArea: TCheckBox
+        Left = 8
+        Top = 354
+        Width = 409
+        Height = 17
+        Caption = 
+          'Do NOT Format Contents between // clang-format off and // clang-' +
+          'format on'
         TabOrder = 2
       end
     end

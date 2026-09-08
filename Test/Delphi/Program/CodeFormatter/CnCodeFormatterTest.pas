@@ -100,6 +100,32 @@ type
     chkAutoWrap: TCheckBox;
     chkLF: TCheckBox;
     chkKeepUserBreakLine: TCheckBox;
+    tsCppFormatter: TTabSheet;
+    tlb1: TToolBar;
+    btnCppLoadFile: TToolButton;
+    btn3: TToolButton;
+    chkCppAutoWrap: TCheckBox;
+    chkCppLF: TCheckBox;
+    chkCppKeepUserBreakLine: TCheckBox;
+    btnFormatCpp: TToolButton;
+    lbl: TLabel;
+    lbl2: TLabel;
+    edtCppIndent: TEdit;
+    btnSep11: TToolButton;
+    lbl3: TLabel;
+    udCpp: TUpDown;
+    btnSep21: TToolButton;
+    btn11: TToolButton;
+    btnCppSave: TToolButton;
+    pnl1: TPanel;
+    lbl4: TLabel;
+    mmoCpp: TMemo;
+    spl2: TSplitter;
+    pnl2: TPanel;
+    lbl5: TLabel;
+    spl11: TSplitter;
+    mmoResultCpp: TMemo;
+    tvCompDirective1: TTreeView;
     procedure btnLoadFileClick(Sender: TObject);
     procedure btnFormatClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -118,6 +144,8 @@ type
       TTreeNode; State: TCustomDrawState; var DefaultDraw: Boolean);
     procedure SrcMemoKeyDown(Sender: TObject; var Key: Word;
       Shift: TShiftState);
+    procedure btnCppLoadFileClick(Sender: TObject);
+    procedure btnFormatCppClick(Sender: TObject);
   private
 
   public
@@ -130,8 +158,8 @@ var
 implementation
 
 uses
-  CnCodeFormatter, CnCodeFormatRules, CnScanners, CnTokens, CnCompDirectiveTree,
-  CnDebug;
+  CnPasCodeFormatter, CnCodeFormatRules, CnPasScanner, CnPasToken,
+  CnCppCodeFormatter, CnCompDirectiveTree, CnDebug;
 
 {$R *.DFM}
 
@@ -156,7 +184,7 @@ var
 begin
   CnPascalCodeForRule.CompDirectiveMode := cdmOnlyFirst;
   CnPascalCodeForRule.TabSpaceCount := UpDown1.Position;
-  CnPascalCodeForRule.KeywordStyle := TCnKeywordStyle(ComboBox1.ItemIndex);
+  CnPascalCodeForRule.KeywordStyle := TCnPasKeywordStyle(ComboBox1.ItemIndex);
   CnPascalCodeForRule.KeepUserLineBreak := chkKeepUserBreakLine.Checked;
   // CnPascalCodeForRule.SingleStatementToBlock := True;
 
@@ -515,6 +543,81 @@ begin
   begin
     (Sender as TMemo).SelectAll;
     Key := 0;
+  end;
+end;
+
+procedure TMainForm.btnCppLoadFileClick(Sender: TObject);
+begin
+  if OpenDialog.Execute then
+  begin
+    mmoCpp.Lines.LoadFromFile(OpenDialog.FileName);
+    lbl4.Caption := OpenDialog.FileName;
+  end;
+end;
+
+procedure TMainForm.btnFormatCppClick(Sender: TObject);
+var
+  Rule: TCnCppCodeFormatRule;
+  Source: string;
+  MemStr: TMemoryStream;
+  Formatter: TCnCppCodeFormatter;
+  StartOffset, EndOffset: Integer;
+begin
+  Rule := CnCppCodeForRule;
+  Rule.TabSpaceCount := udCpp.Position;
+  Rule.BraceStyle := cbsNextLine;
+  Rule.KeepUserLineBreak := chkCppKeepUserBreakLine.Checked;
+
+  if chkCppAutoWrap.Checked then
+  begin
+    if Rule.WrapWidth <= 0 then
+      Rule.WrapWidth := CnCppCodeForVCLRule.WrapWidth;
+  end
+  else
+    Rule.WrapWidth := 0;
+
+  Source := mmoCpp.Lines.Text;
+  if mmoCpp.SelLength <= 0 then
+  begin
+    if chkCppLF.Checked then
+      Source := StringReplace(Source, #13#10, #10, [rfReplaceAll]);
+    mmoResultCpp.Lines.Text := CnFormatCppText(Source, Rule);
+  end
+  else
+  begin
+    // 选择区偏移基于 Memo 的原始 CRLF 文本，不能在此处转换为单 LF。
+    StartOffset := mmoCpp.SelStart;
+    EndOffset := StartOffset + mmoCpp.SelLength;
+
+    MemStr := TMemoryStream.Create;
+    Formatter := nil;
+    try
+      if Source <> '' then
+        MemStr.Write(Source[1], Length(Source) * SizeOf(Char));
+      MemStr.Position := 0;
+
+      Formatter := TCnCppCodeFormatter.Create(MemStr, Rule, StartOffset,
+        EndOffset);
+      Formatter.SliceMode := True;
+
+      ShowMessage(IntToStr(StartOffset) + ':' + IntToStr(EndOffset));
+      CnDebugger.LogRawString(Copy(Source, Formatter.MatchedInStart + 1,
+        Formatter.MatchedInEnd - Formatter.MatchedInStart));
+
+      Formatter.FormatCode;
+      if Formatter.HasSliceResult then
+      begin
+        CnDebugger.LogFmt('C++ Slice Callback: (%d, %d) - (%d, %d)',
+          [Formatter.MatchedOutStartRow, Formatter.MatchedOutStartCol,
+          Formatter.MatchedOutEndRow, Formatter.MatchedOutEndCol]);
+        mmoResultCpp.Lines.Text := Formatter.CopyMatchedSliceResult;
+      end
+      else
+        mmoResultCpp.Clear;
+    finally
+      Formatter.Free;
+      MemStr.Free;
+    end;
   end;
 end;
 

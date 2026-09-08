@@ -18,11 +18,11 @@
 {                                                                              }
 {******************************************************************************}
 
-unit CnCodeFormatter;
+unit CnPasCodeFormatter;
 {* |<PRE>
 ================================================================================
 * 软件名称：CnPack 代码格式化专家
-* 单元名称：格式化专家核心类 CnCodeFormater
+* 单元名称：Pascal 格式化专家核心类 CnCodeFormater
 * 单元作者：CnPack 开发组
 * 备    注：该单元实现了代码格式化的核心类
 *
@@ -46,8 +46,8 @@ unit CnCodeFormatter;
 *           会删除已经输出的内容，使用时尤其要慎重
 *
 * 开发平台：Win2003 + Delphi 5.0
-* 兼容测试：not test yet
-* 本 地 化：not test hell
+* 兼容测试：无
+* 本 地 化：无
 * 修改记录：2003.12.16 V0.4
 *               最初级的实现，巨大的工作量，使用递归下降分析法基本完整的实现了
 *               Delphi 5 的 Object Pascal 语法解析。代码格式上包括代码缩进、关
@@ -60,8 +60,8 @@ interface
 {$I CnPack.inc}
 
 uses
-  Classes, SysUtils, Windows, Dialogs, Contnrs, CnHashMap,
-  CnTokens, CnScanners, CnCodeGenerators, CnCodeFormatRules, CnFormatterIntf;
+  Classes, SysUtils, Windows, Contnrs, CnHashMap,
+  CnPasToken, CnPasScanner, CnPasCodeGenerator, CnCodeFormatRules, CnFormatterIntf;
 
 const
   CN_MATCHED_INVALID = -1;
@@ -183,7 +183,7 @@ type
     {* 根据上一次是否输出了批量空行来决定本次输出单个回车还是双回车的空行，某些场合用来取代 WriteLine}
     procedure WriteLineFeedByPrevCondition;
     {* 根据上一次是否输出了批量空行来决定本次输出不换行还是单个回车，某些场合用来取代 Writeln}
-    function FormatString(const KeywordStr: string; KeywordStyle: TCnKeywordStyle): string;
+    function FormatString(const KeywordStr: string; KeywordStyle: TCnPasKeywordStyle): string;
     {* 返回指定关键字风格的字符串}
     function UpperFirst(const KeywordStr: string): string;
     {* 返回首字母大写的字符串}
@@ -635,7 +635,7 @@ begin
 end;
 
 function TCnAbstractCodeFormatter.FormatString(const KeywordStr: string;
-  KeywordStyle: TCnKeywordStyle): string;
+  KeywordStyle: TCnPasKeywordStyle): string;
 begin
   case KeywordStyle of
     ksPascalKeyword:    Result := UpperFirst(KeywordStr);
@@ -2733,7 +2733,7 @@ var
   OldLastToken: TPascalToken;
   LabelLen, InstrucLen: Integer;
   ALabel: string;
-  OldKeywordStyle: TCnKeywordStyle;
+  OldKeywordStyle: TCnPasKeywordStyle;
 begin
   Match(tokKeywordAsm, PreSpaceCount);
   Writeln;
