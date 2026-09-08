@@ -47,6 +47,9 @@ const
   CN_WIZ_MAX_ID = 31;
   {* 接收端 ID 的最大长度}
 
+  CN_WIZ_MAX_DATA = 1024 * 1024;
+  {* 命令附加数据的最大长度，单位为字节}
+
   SCN_WIZ_CMD_WINDOW_NAME = 'TCnWizCmdWindow';
   {* 内部注册的窗口类名，供接收消息用}
 

@@ -47,6 +47,9 @@ type
   TCnACPClientPromptResultEvent = procedure(Sender: TObject; const SessionId, StopReason: string;
     Success: Boolean; const ErrorMessage: string) of object;
   TCnACPClientSessionUpdateEvent = procedure(Sender: TObject; const SessionId, UpdateJson: string) of object;
+  TCnACPClientTextChunkEvent = procedure(Sender: TObject; const SessionId, Text: string) of object;
+  TCnACPClientToolCallEvent = procedure(Sender: TObject; const SessionId, ToolCallId,
+    Title, UpdateJson: string) of object;
 
   // Agent -> Client callbacks
   TCnACPReadTextFileEvent = procedure(Sender: TObject; const SessionId, FileName: string;
@@ -90,12 +93,17 @@ type
     FOnSessionClosed: TCnACPClientSessionClosedEvent;
     FOnPromptResult: TCnACPClientPromptResultEvent;
     FOnSessionUpdate: TCnACPClientSessionUpdateEvent;
+    FOnMessageChunk: TCnACPClientTextChunkEvent;
+    FOnThoughtChunk: TCnACPClientTextChunkEvent;
+    FOnToolCall: TCnACPClientToolCallEvent;
+    FOnToolCallUpdate: TCnACPClientToolCallEvent;
     FOnReadTextFile: TCnACPReadTextFileEvent;
     FOnWriteTextFile: TCnACPWriteTextFileEvent;
     FOnRequestPermission: TCnACPRequestPermissionEvent;
 
     procedure SetState(Value: TCnACPConnectionState);
     function NextRequestID: string;
+    procedure ResetProtocolState;
     function AddPending(const AID, AMethod, ASessionId: string): TCnACPPendingCall;
     function FindPending(const AID: string): TCnACPPendingCall;
     procedure RemovePending(const AID: string);
@@ -122,6 +130,8 @@ type
     procedure ConfigureTransport(const ApplicationName, CommandLine, WorkingDirectory: string);
     function StartAgent: Boolean;
     procedure StopAgent;
+    // 兼容早期 ACP 草案中的 tool_result。ACP v1 的工具调用由 Agent
+    // 执行，Client 只负责显示工具调用的更新状态。
     function SendToolResult(const ToolCallId, SessionId: string;
       ResultObj: TCnJSONObject): Boolean;
 
@@ -158,6 +168,10 @@ type
     property OnSessionClosed: TCnACPClientSessionClosedEvent read FOnSessionClosed write FOnSessionClosed;
     property OnPromptResult: TCnACPClientPromptResultEvent read FOnPromptResult write FOnPromptResult;
     property OnSessionUpdate: TCnACPClientSessionUpdateEvent read FOnSessionUpdate write FOnSessionUpdate;
+    property OnMessageChunk: TCnACPClientTextChunkEvent read FOnMessageChunk write FOnMessageChunk;
+    property OnThoughtChunk: TCnACPClientTextChunkEvent read FOnThoughtChunk write FOnThoughtChunk;
+    property OnToolCall: TCnACPClientToolCallEvent read FOnToolCall write FOnToolCall;
+    property OnToolCallUpdate: TCnACPClientToolCallEvent read FOnToolCallUpdate write FOnToolCallUpdate;
 
     property OnReadTextFile: TCnACPReadTextFileEvent read FOnReadTextFile write FOnReadTextFile;
     property OnWriteTextFile: TCnACPWriteTextFileEvent read FOnWriteTextFile write FOnWriteTextFile;
@@ -172,12 +186,36 @@ implementation
 
 function JsonValueToString(V: TCnJSONValue): string;
 begin
-  if V = nil then
-    Result := ''
-  else if V is TCnJSONString then
+  if V is TCnJSONString then
     Result := V.AsString
   else
-    Result := V.AsString;
+    Result := '';
+end;
+
+function JsonValueIsPresent(V: TCnJSONValue): Boolean;
+begin
+  Result := (V <> nil) and not (V is TCnJSONNull);
+end;
+
+function PermissionOptionExists(Options: TCnJSONArray;
+  const OptionId: string): Boolean;
+var
+  I: Integer;
+  Item: TCnJSONValue;
+begin
+  Result := False;
+  if (Options = nil) or (OptionId = '') then
+    Exit;
+  for I := 0 to Options.Count - 1 do
+  begin
+    Item := Options[I];
+    if (Item is TCnJSONObject) and
+       (JsonValueToString(TCnJSONObject(Item).ValueByName['optionId']) = OptionId) then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
 end;
 
 function JsonValueToIntDef(V: TCnJSONValue; Def: Integer): Integer;
@@ -244,8 +282,23 @@ end;
 
 function TCnACPClient.StartAgent: Boolean;
 begin
+  if FTransport.Running then
+  begin
+    SetState(acsRunning);
+    Result := True;
+    Exit;
+  end;
+
   SetState(acsStarting);
-  Result := FTransport.Start;
+  try
+    Result := FTransport.Start;
+  except
+    on E: Exception do
+    begin
+      TransportLog(Self, 'ACP start failed: ' + E.Message);
+      Result := False;
+    end;
+  end;
   if Result then
     SetState(acsRunning)
   else
@@ -254,10 +307,24 @@ end;
 
 procedure TCnACPClient.StopAgent;
 begin
-  FTransport.Stop;
+  if FTransport <> nil then
+    FTransport.Stop;
   ClearPending;
   FCurrentSessionId := '';
+  ResetProtocolState;
   SetState(acsClosed);
+end;
+
+procedure TCnACPClient.ResetProtocolState;
+begin
+  FProtocolVersion := 0;
+  FCanLoadSession := False;
+  FCanResumeSession := False;
+  FCanCloseSession := False;
+  FAuthMethodIds.Clear;
+  FAgentName := '';
+  FAgentTitle := '';
+  FAgentVersion := '';
 end;
 
 function TCnACPClient.NextRequestID: string;
@@ -318,8 +385,14 @@ procedure TCnACPClient.TransportRunningChanged(Sender: TObject; Running: Boolean
 begin
   if Running then
     SetState(acsRunning)
-  else if FState <> acsError then
-    SetState(acsClosed);
+  else
+  begin
+    ClearPending;
+    FCurrentSessionId := '';
+    ResetProtocolState;
+    if FState <> acsError then
+      SetState(acsClosed);
+  end;
 end;
 
 procedure TCnACPClient.TransportLine(Sender: TObject; const Line: AnsiString);
@@ -380,11 +453,23 @@ begin
 
   if Pending.MethodName = CN_ACP_METHOD_INITIALIZE then
   begin
-    if Success and (Msg.ResultValue is TCnJSONObject) then
+    if Success and not (Msg.ResultValue is TCnJSONObject) then
+    begin
+      Success := False;
+      ErrMsg := 'Invalid initialize response';
+    end;
+
+    if Success then
     begin
       RootObj := TCnJSONObject(Msg.ResultValue);
       V := RootObj.ValueByName['protocolVersion'];
       FProtocolVersion := JsonValueToIntDef(V, 0);
+
+      if FProtocolVersion <> CN_ACP_PROTOCOL_VERSION then
+      begin
+        Success := False;
+        ErrMsg := Format('Unsupported ACP protocol version: %d', [FProtocolVersion]);
+      end;
 
       FCanLoadSession := False;
       FCanResumeSession := False;
@@ -401,8 +486,8 @@ begin
         if A.ValueByName['sessionCapabilities'] is TCnJSONObject then
         begin
           C := TCnJSONObject(A.ValueByName['sessionCapabilities']);
-          FCanResumeSession := C.ValueByName['resume'] <> nil;
-          FCanCloseSession := C.ValueByName['close'] <> nil;
+          FCanResumeSession := JsonValueIsPresent(C.ValueByName['resume']);
+          FCanCloseSession := JsonValueIsPresent(C.ValueByName['close']);
         end;
       end;
 
@@ -431,6 +516,14 @@ begin
         end;
       end;
     end;
+    if not Success then
+    begin
+      FProtocolVersion := 0;
+      FCanLoadSession := False;
+      FCanResumeSession := False;
+      FCanCloseSession := False;
+      SetState(acsError);
+    end;
     if Assigned(FOnInitialized) then
       FOnInitialized(Self, Success, ErrMsg);
   end
@@ -442,12 +535,22 @@ begin
   else if Pending.MethodName = CN_ACP_METHOD_SESSION_NEW then
   begin
     SessionId := '';
-    if Success and (Msg.ResultValue is TCnJSONObject) then
+    if Success and not (Msg.ResultValue is TCnJSONObject) then
+    begin
+      Success := False;
+      ErrMsg := 'Invalid session/new response';
+    end;
+    if Success then
     begin
       V := TCnJSONObject(Msg.ResultValue).ValueByName['sessionId'];
       SessionId := JsonValueToString(V);
       if SessionId <> '' then
         FCurrentSessionId := SessionId;
+      if SessionId = '' then
+      begin
+        Success := False;
+        ErrMsg := 'session/new response has no sessionId';
+      end;
     end;
     if Assigned(FOnSessionCreated) then
       FOnSessionCreated(Self, SessionId, Success, ErrMsg);
@@ -479,10 +582,20 @@ begin
   else if Pending.MethodName = CN_ACP_METHOD_SESSION_PROMPT then
   begin
     StopReason := '';
-    if Success and (Msg.ResultValue is TCnJSONObject) then
+    if Success and not (Msg.ResultValue is TCnJSONObject) then
+    begin
+      Success := False;
+      ErrMsg := 'Invalid session/prompt response';
+    end;
+    if Success then
     begin
       V := TCnJSONObject(Msg.ResultValue).ValueByName['stopReason'];
       StopReason := JsonValueToString(V);
+      if StopReason = '' then
+      begin
+        Success := False;
+        ErrMsg := 'session/prompt response has no stopReason';
+      end;
     end;
     if Assigned(FOnPromptResult) then
       FOnPromptResult(Self, Pending.SessionId, StopReason, Success, ErrMsg);
@@ -493,141 +606,59 @@ end;
 
 procedure TCnACPClient.HandleNotification(const Msg: TCnACPParsedMessage);
 var
-  SessionId, UpdateTypeStr, ToolName, ToolCallId, FilePath, Content: string;
-  Obj, UpdateObj, RawInput, ResultObj: TCnJSONObject;
+  SessionId, UpdateTypeStr, ToolCallId, Title, Text: string;
+  Obj, UpdateObj, ContentObj: TCnJSONObject;
   V: TCnJSONValue;
-  BinFile: TStringList;
-  CmdResult: TCnAIAgentToolExecuteResult;
-  SL: TStringList;
 begin
-  if Msg.Method = CN_ACP_METHOD_SESSION_UPDATE then
+  if (Msg.Method <> CN_ACP_METHOD_SESSION_UPDATE) or
+     not (Msg.Params is TCnJSONObject) then
+    Exit;
+
+  Obj := TCnJSONObject(Msg.Params);
+  SessionId := JsonValueToString(Obj.ValueByName['sessionId']);
+  UpdateObj := nil;
+  if Obj.ValueByName['update'] is TCnJSONObject then
+    UpdateObj := TCnJSONObject(Obj.ValueByName['update']);
+
+  if Assigned(FOnSessionUpdate) then
+    FOnSessionUpdate(Self, SessionId, Obj.ToJSON(False, 0));
+  if UpdateObj = nil then
+    Exit;
+
+  UpdateTypeStr := JsonValueToString(UpdateObj.ValueByName['sessionUpdate']);
+  if (UpdateTypeStr = CN_ACP_UPDATE_AGENT_MESSAGE_CHUNK) or
+     (UpdateTypeStr = CN_ACP_UPDATE_AGENT_THOUGHT_CHUNK) then
   begin
-    SessionId := '';
-    if Msg.Params is TCnJSONObject then
+    Text := '';
+    V := UpdateObj.ValueByName['content'];
+    if V is TCnJSONObject then
     begin
-      Obj := TCnJSONObject(Msg.Params);
-      if Obj.ValueByName['sessionId'] <> nil then
-        SessionId := Obj.ValueByName['sessionId'].AsString;
+      ContentObj := TCnJSONObject(V);
+      Text := JsonValueToString(ContentObj.ValueByName['text']);
+    end
+    else
+      Text := JsonValueToString(V);
 
-      // The update data is nested inside an 'update' object
-      UpdateObj := nil;
-      if Obj.ValueByName['update'] is TCnJSONObject then
-        UpdateObj := TCnJSONObject(Obj.ValueByName['update']);
-
-      if UpdateObj = nil then
-      begin
-        if Assigned(FOnSessionUpdate) then
-          FOnSessionUpdate(Self, SessionId, Obj.ToJSON(False, 0));
-        Exit;
-      end;
-
-      // Read sessionUpdate type from the nested update object
-      UpdateTypeStr := '';
-      V := UpdateObj.ValueByName['sessionUpdate'];
-      if V <> nil then
-        UpdateTypeStr := V.AsString;
-
-      // Tool call: server asks client to execute a tool
-      if (UpdateTypeStr = CN_ACP_UPDATE_TOOL_CALL) or
-         (UpdateTypeStr = CN_ACP_UPDATE_TOOL_CALL_UPDATE) then
-      begin
-        // Always print the raw update so user can see what's happening
-        if Assigned(FOnSessionUpdate) then
-          FOnSessionUpdate(Self, SessionId, Obj.ToJSON(False, 0));
-
-        ToolCallId := JsonValueToString(UpdateObj.ValueByName['toolCallId']);
-        if ToolCallId = '' then
-          Exit;
-
-        ToolName := LowerCase(JsonValueToString(UpdateObj.ValueByName['title']));
-        ResultObj := nil;
-
-        // Get rawInput as JSON object (tool arguments)
-        RawInput := nil;
-        if UpdateObj.ValueByName['rawInput'] is TCnJSONObject then
-          RawInput := TCnJSONObject(UpdateObj.ValueByName['rawInput']);
-
-        // Try to execute the tool if we have data
-        if (RawInput <> nil) and (RawInput.Count > 0) then
-        begin
-          if (ToolName <> '') and (FToolManager <> nil) then
-          begin
-            CmdResult := FToolManager.ExecuteTool(ToolName, RawInput, nil);
-            if CmdResult.Success then
-              ResultObj := CmdResult.ResultData;
-          end;
-
-          if (ResultObj = nil) and (ToolName <> '') and (FToolManager <> nil) then
-          begin
-            if ToolName = 'write' then
-              CmdResult := FToolManager.ExecuteTool('fs/write_text_file', RawInput, nil)
-            else if ToolName = 'read' then
-              CmdResult := FToolManager.ExecuteTool('fs/read_text_file', RawInput, nil);
-            if CmdResult.Success then
-              ResultObj := CmdResult.ResultData;
-          end;
-
-          if ResultObj = nil then
-          begin
-            if ToolName = 'write' then
-            begin
-              FilePath := JsonValueToString(RawInput.ValueByName['filePath']);
-              Content := JsonValueToString(RawInput.ValueByName['content']);
-              if FilePath <> '' then
-              begin
-                BinFile := TStringList.Create;
-                try
-                  BinFile.Text := Content;
-                  ForceDirectories(ExtractFileDir(FilePath));
-                  BinFile.SaveToFile(FilePath);
-                  ResultObj := TCnJSONObject.Create;
-                  ResultObj.AddPair('success', True);
-                  ResultObj.AddPair('path', FilePath);
-                finally
-                  BinFile.Free;
-                end;
-              end;
-            end
-            else if ToolName = 'read' then
-            begin
-              FilePath := JsonValueToString(RawInput.ValueByName['filePath']);
-              if FilePath = '' then
-                FilePath := JsonValueToString(RawInput.ValueByName['path']);
-              if FileExists(FilePath) then
-              begin
-                SL := TStringList.Create;
-                try
-                  SL.LoadFromFile(FilePath);
-                  ResultObj := TCnJSONObject.Create;
-                  ResultObj.AddPair('content', SL.Text);
-                finally
-                  SL.Free;
-                end;
-              end;
-            end
-            else if ToolName = 'bash' then
-            begin
-              Content := JsonValueToString(RawInput.ValueByName['command']);
-              ResultObj := TCnJSONObject.Create;
-              ResultObj.AddPair('stdout', '(bash not yet implemented)');
-              ResultObj.AddPair('stderr', '');
-              ResultObj.AddPair('exitCode', -1);
-            end;
-          end;
-        end;
-
-        if ResultObj = nil then
-        begin
-          ResultObj := TCnJSONObject.Create;
-          ResultObj.AddPair('success', True);
-          ResultObj.AddPair('acknowledged', True);
-        end;
-
-        SendToolResult(ToolCallId, SessionId, ResultObj);
-      end
-      else if Assigned(FOnSessionUpdate) then
-        FOnSessionUpdate(Self, SessionId, Obj.ToJSON(False, 0));
+    if Text <> '' then
+    begin
+      if (UpdateTypeStr = CN_ACP_UPDATE_AGENT_MESSAGE_CHUNK) and
+         Assigned(FOnMessageChunk) then
+        FOnMessageChunk(Self, SessionId, Text)
+      else if (UpdateTypeStr = CN_ACP_UPDATE_AGENT_THOUGHT_CHUNK) and
+              Assigned(FOnThoughtChunk) then
+        FOnThoughtChunk(Self, SessionId, Text);
     end;
+  end
+  else if (UpdateTypeStr = CN_ACP_UPDATE_TOOL_CALL) or
+          (UpdateTypeStr = CN_ACP_UPDATE_TOOL_CALL_UPDATE) then
+  begin
+    ToolCallId := JsonValueToString(UpdateObj.ValueByName['toolCallId']);
+    Title := JsonValueToString(UpdateObj.ValueByName['title']);
+    if (UpdateTypeStr = CN_ACP_UPDATE_TOOL_CALL) and Assigned(FOnToolCall) then
+      FOnToolCall(Self, SessionId, ToolCallId, Title, UpdateObj.ToJSON(False, 0))
+    else if (UpdateTypeStr = CN_ACP_UPDATE_TOOL_CALL_UPDATE) and
+            Assigned(FOnToolCallUpdate) then
+      FOnToolCallUpdate(Self, SessionId, ToolCallId, Title, UpdateObj.ToJSON(False, 0));
   end;
 end;
 
@@ -636,8 +667,9 @@ var
   P: TCnJSONObject;
   SessionId, Path, Content, Outcome, OptionId, ErrorMessage: string;
   Line, Limit: Integer;
-  Handled: Boolean;
+  Handled, HasHandler: Boolean;
   R, O: TCnJSONObject;
+  NullValue: TCnJSONValue;
   A: TCnJSONArray;
 begin
   if not (Msg.Params is TCnJSONObject) then
@@ -654,9 +686,15 @@ begin
     Path := JsonValueToString(P.ValueByName['path']);
     Line := JsonValueToIntDef(P.ValueByName['line'], 0);
     Limit := JsonValueToIntDef(P.ValueByName['limit'], 0);
+    if (SessionId = '') or (Path = '') or (Line < 0) or (Limit < 0) then
+    begin
+      SendError(Msg.ID, CN_ACP_ERR_INVALID_PARAMS, 'Invalid fs/read_text_file params');
+      Exit;
+    end;
     Content := '';
     Handled := False;
-    if Assigned(FOnReadTextFile) then
+    HasHandler := Assigned(FOnReadTextFile);
+    if HasHandler then
       FOnReadTextFile(Self, SessionId, Path, Line, Limit, Content, Handled);
     if Handled then
     begin
@@ -675,40 +713,72 @@ begin
   begin
     Path := JsonValueToString(P.ValueByName['path']);
     Content := JsonValueToString(P.ValueByName['content']);
+    if (SessionId = '') or (Path = '') then
+    begin
+      SendError(Msg.ID, CN_ACP_ERR_INVALID_PARAMS, 'Invalid fs/write_text_file params');
+      Exit;
+    end;
     Handled := False;
     ErrorMessage := '';
-    if Assigned(FOnWriteTextFile) then
+    HasHandler := Assigned(FOnWriteTextFile);
+    if HasHandler then
       FOnWriteTextFile(Self, SessionId, Path, Content, Handled, ErrorMessage);
     if Handled then
-      SendResult(Msg.ID, TCnJSONNull.Create)
+    begin
+      NullValue := TCnJSONNull.Create;
+      try
+        SendResult(Msg.ID, NullValue);
+      finally
+        NullValue.Free;
+      end;
+    end
+    else if HasHandler and (ErrorMessage <> '') then
+      SendError(Msg.ID, CN_ACP_ERR_INTERNAL_ERROR, ErrorMessage)
     else
       SendError(Msg.ID, CN_ACP_ERR_METHOD_NOT_FOUND,
         'fs/write_text_file not handled. ' + ErrorMessage);
   end
   else if Msg.Method = CN_ACP_METHOD_SESSION_REQUEST_PERMISSION then
   begin
+    if (SessionId = '') or
+       not (P.ValueByName['toolCall'] is TCnJSONObject) or
+       not (P.ValueByName['options'] is TCnJSONArray) then
+    begin
+      SendError(Msg.ID, CN_ACP_ERR_INVALID_PARAMS,
+        'Invalid session/request_permission params');
+      Exit;
+    end;
+
     Outcome := 'cancelled';
     OptionId := '';
     Handled := False;
+    R := TCnJSONObject(P.ValueByName['toolCall']);
+    A := TCnJSONArray(P.ValueByName['options']);
+    Path := R.ToJSON(False, 0);
+    Content := A.ToJSON(False, 0);
     if Assigned(FOnRequestPermission) then
     begin
-      if P.ValueByName['toolCall'] is TCnJSONObject then
-        R := TCnJSONObject(P.ValueByName['toolCall'])
-      else
-        R := nil;
-      if P.ValueByName['options'] is TCnJSONArray then
-        A := TCnJSONArray(P.ValueByName['options'])
-      else
-        A := nil;
-      if R <> nil then
-        Path := R.ToJSON(False, 0)
-      else
-        Path := '{}';
-      if A <> nil then
-        Content := A.ToJSON(False, 0)
-      else
-        Content := '[]';
       FOnRequestPermission(Self, SessionId, Path, Content, Outcome, OptionId, Handled);
+    end;
+
+    if not Handled then
+    begin
+      Outcome := 'cancelled';
+      OptionId := '';
+    end
+    else if Outcome = 'selected' then
+    begin
+      if not PermissionOptionExists(A, OptionId) then
+      begin
+        Outcome := 'cancelled';
+        OptionId := '';
+      end;
+    end
+    else if (Outcome <> 'cancelled') and (Outcome <> 'rejected') and
+            (Outcome <> 'expired') then
+    begin
+      Outcome := 'cancelled';
+      OptionId := '';
     end;
 
     R := TCnJSONObject.Create;
@@ -731,29 +801,40 @@ function TCnACPClient.SendRequest(const Method: string; Params: TCnJSONValue;
   const SessionIdForPending: string): string;
 var
   ID: string;
+  Payload: AnsiString;
 begin
+  Result := '';
+  if (FTransport = nil) or not FTransport.Running then
+    Exit;
+
   ID := NextRequestID;
+  Payload := ACPBuildRequest(ID, Method, Params);
   AddPending(ID, Method, SessionIdForPending);
-  FTransport.SendLine(ACPBuildRequest(ID, Method, Params));
-  Result := ID;
+  if FTransport.SendLine(Payload) then
+    Result := ID
+  else
+    RemovePending(ID);
 end;
 
 function TCnACPClient.SendNotification(const Method: string;
   Params: TCnJSONValue): Boolean;
 begin
-  Result := FTransport.SendLine(ACPBuildNotification(Method, Params));
+  Result := (FTransport <> nil) and FTransport.Running and
+    FTransport.SendLine(ACPBuildNotification(Method, Params));
 end;
 
 function TCnACPClient.SendResult(const RequestID: string;
   ResultValue: TCnJSONValue): Boolean;
 begin
-  Result := FTransport.SendLine(ACPBuildResultResponse(RequestID, ResultValue));
+  Result := (FTransport <> nil) and FTransport.Running and
+    FTransport.SendLine(ACPBuildResultResponse(RequestID, ResultValue));
 end;
 
 function TCnACPClient.SendError(const RequestID: string; ErrorCode: Integer;
   const ErrorMessage: string; ErrorData: TCnJSONValue): Boolean;
 begin
-  Result := FTransport.SendLine(ACPBuildErrorResponse(RequestID, ErrorCode,
+  Result := (FTransport <> nil) and FTransport.Running and
+    FTransport.SendLine(ACPBuildErrorResponse(RequestID, ErrorCode,
     ErrorMessage, ErrorData));
 end;
 
@@ -763,6 +844,11 @@ var
   Params: TCnJSONObject;
   ToolDescs: TCnJSONArray;
 begin
+  if (FTransport = nil) or not FTransport.Running then
+  begin
+    Result := '';
+    Exit;
+  end;
   ToolDescs := nil;
   if FToolManager <> nil then
     ToolDescs := FToolManager.GetToolDescriptions;
@@ -779,6 +865,12 @@ function TCnACPClient.Authenticate(const MethodId: string): string;
 var
   Params: TCnJSONObject;
 begin
+  Result := '';
+  if (FProtocolVersion <> CN_ACP_PROTOCOL_VERSION) or (MethodId = '') then
+    Exit;
+  if (FAuthMethodIds.Count > 0) and (FAuthMethodIds.IndexOf(MethodId) < 0) then
+    Exit;
+
   Params := TCnJSONObject.Create;
   try
     Params.AddPair('methodId', MethodId);
@@ -793,6 +885,10 @@ function TCnACPClient.NewSession(const Cwd: string;
 var
   Params: TCnJSONObject;
 begin
+  Result := '';
+  if (FProtocolVersion <> CN_ACP_PROTOCOL_VERSION) or (Cwd = '') then
+    Exit;
+
   Params := TCnJSONObject.Create;
   try
     Params.AddPair('cwd', Cwd);
@@ -811,6 +907,11 @@ function TCnACPClient.LoadSession(const SessionId, Cwd: string;
 var
   Params: TCnJSONObject;
 begin
+  Result := '';
+  if (FProtocolVersion <> CN_ACP_PROTOCOL_VERSION) or not FCanLoadSession or
+     (SessionId = '') or (Cwd = '') then
+    Exit;
+
   Params := TCnJSONObject.Create;
   try
     Params.AddPair('sessionId', SessionId);
@@ -830,6 +931,11 @@ function TCnACPClient.ResumeSession(const SessionId, Cwd: string;
 var
   Params: TCnJSONObject;
 begin
+  Result := '';
+  if (FProtocolVersion <> CN_ACP_PROTOCOL_VERSION) or not FCanResumeSession or
+     (SessionId = '') or (Cwd = '') then
+    Exit;
+
   Params := TCnJSONObject.Create;
   try
     Params.AddPair('sessionId', SessionId);
@@ -848,6 +954,11 @@ function TCnACPClient.CloseSession(const SessionId: string): string;
 var
   Params: TCnJSONObject;
 begin
+  Result := '';
+  if (FProtocolVersion <> CN_ACP_PROTOCOL_VERSION) or not FCanCloseSession or
+     (SessionId = '') then
+    Exit;
+
   Params := TCnJSONObject.Create;
   try
     Params.AddPair('sessionId', SessionId);
@@ -862,6 +973,10 @@ function TCnACPClient.Prompt(const SessionId: string;
 var
   Params: TCnJSONObject;
 begin
+  Result := '';
+  if (FProtocolVersion <> CN_ACP_PROTOCOL_VERSION) or (SessionId = '') then
+    Exit;
+
   Params := TCnJSONObject.Create;
   try
     Params.AddPair('sessionId', SessionId);
@@ -891,6 +1006,12 @@ function TCnACPClient.Cancel(const SessionId: string): Boolean;
 var
   Params: TCnJSONObject;
 begin
+  if (FProtocolVersion <> CN_ACP_PROTOCOL_VERSION) or (SessionId = '') then
+  begin
+    Result := False;
+    Exit;
+  end;
+
   Params := TCnJSONObject.Create;
   try
     Params.AddPair('sessionId', SessionId);
@@ -921,5 +1042,4 @@ begin
 end;
 
 {$ENDIF CNWIZARDS_CNAICODERWIZARD}
-
 end.

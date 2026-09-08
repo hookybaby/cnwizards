@@ -173,15 +173,78 @@ begin
   FClients.Add(Obj);
 end;
 
+function CnWizCmdHasTerminator(Value: PAnsiChar; MaxLength: Integer): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  if (Value = nil) or (MaxLength <= 0) then
+    Exit;
+
+  for I := 0 to MaxLength - 1 do
+  begin
+    if Value[I] = #0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+function CnWizCmdValidateMessage(CopyData: PCopyDataStruct;
+  out Cmd: PCnWizMessage): Boolean;
+const
+  HeaderSize = SizeOf(TCnWizMessage) - SizeOf(Cardinal);
+var
+  DataSize: Cardinal;
+begin
+  Cmd := nil;
+  Result := False;
+
+  if (CopyData = nil) or (CopyData^.lpData = nil) then
+    Exit;
+
+  if (CopyData^.cbData < HeaderSize) or
+    (CopyData^.cbData > HeaderSize + CN_WIZ_MAX_DATA) then
+    Exit;
+
+  Cmd := PCnWizMessage(CopyData^.lpData);
+  DataSize := CopyData^.cbData - HeaderSize;
+
+  if Cmd^.DataLength <> DataSize then
+  begin
+    Cmd := nil;
+    Exit;
+  end;
+
+  if not CnWizCmdHasTerminator(@Cmd^.SourceID[0], SizeOf(Cmd^.SourceID)) or
+    not CnWizCmdHasTerminator(@Cmd^.DestID[0], SizeOf(Cmd^.DestID)) then
+  begin
+    Cmd := nil;
+    Exit;
+  end;
+
+  Result := True;
+end;
+
 procedure TCnWizCmdNotifier.CnWizCmdWndProc(var Message: TMessage);
 var
   I: Integer;
+  CopyData: PCopyDataStruct;
 begin
   Message.Result := 0;
   case Message.Msg of
     WM_COPYDATA:
       begin
-        FCurrentCmd := TWmCopyData(Message).CopyDataStruct^.lpData;
+        FCurrentCmd := nil;
+        CopyData := TWmCopyData(Message).CopyDataStruct;
+        if not CnWizCmdValidateMessage(CopyData, FCurrentCmd) then
+        begin
+{$IFDEF DEBUG}
+          CnDebugger.LogMsgError('WizCmdNotifier: Ignore malformed WM_COPYDATA message.');
+{$ENDIF}
+          Exit;
+        end;
 {$IFDEF DEBUG}
         CnDebugger.LogFmt('WizCmdNotifier: Got Broadcast Message. Send to %d Clients.', [FClients.Count]);
 {$ENDIF}
@@ -222,14 +285,18 @@ begin
     GetSystemMetrics(SM_CYSCREEN) div 2,
     0, 0, 0, 0, HInstance, nil);
 
+  // Win64 的窗口过程槽位保存指针，因此必须使用指针宽度的 API 和索引。
+  // 32 位分支继续兼容不提供 SetWindowLongPtr/GWLP_WNDPROC 的 Delphi 5-7。
+  // HWND 仍按原生句柄宽度传递给 user32，因此 WM_COPYDATA 可在 32 位与
+  // 64 位进程之间互操作。
 {$IFDEF WIN64}
-  SetWindowLong(FHandle, GWL_WNDPROC, NativeInt(FObjectInstance));
+  SetWindowLongPtr(FHandle, GWLP_WNDPROC, NativeInt(FObjectInstance));
 {$ELSE}
   SetWindowLong(FHandle, GWL_WNDPROC, Longint(FObjectInstance));
 {$ENDIF}
 
 {$IFDEF DEBUG}
-  CnDebugger.LogFmt('WizCmdNotifier: Create Window %8.8x', [FHandle]);
+  CnDebugger.LogFmt('WizCmdNotifier: Create Window %p', [Pointer(FHandle)]);
 {$ENDIF}
 end;
 

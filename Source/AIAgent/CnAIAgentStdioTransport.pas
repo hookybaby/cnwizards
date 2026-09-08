@@ -119,6 +119,11 @@ end;
 
 function TCnACPStdioTransport.Start: Boolean;
 begin
+  if FProc.Running then
+  begin
+    Result := True;
+    Exit;
+  end;
   FOutRemain := '';
   FProc.ApplicationName := FAppName;
   FProc.CommandLine := FCmdLine;
@@ -130,7 +135,7 @@ end;
 
 procedure TCnACPStdioTransport.Stop;
 begin
-  if FProc <> nil then
+  if (FProc <> nil) and FProc.Running then
   begin
     FProc.Terminate;
     FProc.WaitFor(2000);
@@ -190,6 +195,11 @@ var
   B: TBytes;
   Payload: AnsiString;
 begin
+  if (FProc = nil) or not FProc.Running then
+  begin
+    Result := False;
+    Exit;
+  end;
   Payload := Line + ACP_LF;
   SetLength(B, Length(Payload));
   if Length(Payload) > 0 then
@@ -233,7 +243,15 @@ var
 begin
   while not Terminated and (FProcess <> nil) and FProcess.Running do
   begin
-    BytesRead := FProcess.Output.Read(Buffer, SizeOf(Buffer));
+    try
+      BytesRead := FProcess.Output.Read(Buffer, SizeOf(Buffer));
+    except
+      on E: Exception do
+      begin
+        FOwner.EmitLog('ACP reader failed: ' + E.Message);
+        Break;
+      end;
+    end;
     if BytesRead > 0 then
     begin
       SetLength(S, BytesRead);
@@ -250,6 +268,15 @@ begin
     end
     else
       Sleep(10);
+  end;
+
+  // 进程可能在未显式调用 Stop 时自行退出，此时应通知 Client，
+  // 使其清除待处理请求及已经协商的能力。
+  if not Terminated and (FProcess <> nil) and not FProcess.Running then
+  begin
+    FOwner.EmitLog('ACP agent exited');
+    if Assigned(FOwner.FOnRunningChanged) then
+      FOwner.FOnRunningChanged(FOwner, False);
   end;
 end;
 
@@ -364,7 +391,7 @@ var
   Holder: TPOSIXProcessHolder;
 begin
   Result := False;
-  if FProcess = nil then
+  if (FProcess = nil) or not Running then
     Exit;
 
   Holder := TPOSIXProcessHolder(FProcess);
@@ -372,6 +399,8 @@ begin
   SetLength(B, Length(Payload));
   if Length(Payload) > 0 then
     Move(Payload[1], B[0], Length(Payload));
+  if Length(B) = 0 then
+    Exit;
   try
     Holder.Process.Input.Write(B[0], Length(B));
     Result := True;
@@ -395,5 +424,4 @@ begin
 end;
 
 {$ENDIF CNWIZARDS_CNAICODERWIZARD}
-
 end.
